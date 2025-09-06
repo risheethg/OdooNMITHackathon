@@ -26,8 +26,9 @@ class TaskBase(BaseModel):
 class TaskCreate(TaskBase):
     """
     Model for creating a new task.
+    The 'created_by' field is removed as it will be set automatically by the service.
     """
-    created_by: str # The user ID of the person creating the task
+    pass
 
 class TaskUpdate(BaseModel):
     """

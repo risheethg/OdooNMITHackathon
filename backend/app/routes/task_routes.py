@@ -26,8 +26,8 @@ def create_new_task(project_id: str, task_data: TaskCreate, current_user: User =
     Creates a new task for a specified project.
     """
     try:
-        # Pass the creator's ID from the authenticated user
-        new_task = create_task(project_id, task_data)
+        # Pass the creator's ID from the authenticated user to the service
+        new_task = create_task(project_id, task_data, current_user.user_id)
         return ResponseModel(
             status="success",
             message="Task created successfully.",
