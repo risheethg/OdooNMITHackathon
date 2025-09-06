@@ -1,7 +1,8 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from pymongo.mongo_client import MongoClient
 
-from app.models.member_model import MemberAdditionRequest, MemberRemovalRequest, Project
+from app.models.member_model import MemberAdditionRequest, MemberRemovalRequest
+from app.models.project_model import Project
 from app.services.member_service import ProjectService
 from app.repos.project_repo import ProjectRepo
 

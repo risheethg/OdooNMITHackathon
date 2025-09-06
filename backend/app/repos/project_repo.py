@@ -4,6 +4,7 @@ from typing import Dict, Any, Optional
 from bson import ObjectId
 
 from app.repos.base_repo import BaseRepo
+from app.core.db_connection import get_db
 
 # Assuming project_repo is an instance of ProjectRepo and configured correctly.
 # project_repo = ProjectRepo(collection=db.projects)
@@ -12,8 +13,15 @@ class ProjectRepo(BaseRepo):
     """
     Repository for managing project documents.
     """
-    def __init__(self, collection: Collection):
-        super().__init__(collection)
+    def __init__(self):
+        db = get_db()
+        super().__init__(collection=db.get_collection("Projects"))
+
+    def get_by_name(self, project_name: str) -> Optional[Dict[str, Any]]:
+        """
+        Custom method to find a single non-deleted project by its name.
+        """
+        return self.get_one({"project_name": project_name})
 
     def add_member(self, project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Adds a member to a project's members list using $addToSet to avoid duplicates."""
@@ -44,3 +52,4 @@ class ProjectRepo(BaseRepo):
             return self.find_one_by(filter_query)
         return None
 
+project_repo=ProjectRepo()
