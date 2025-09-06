@@ -18,32 +18,36 @@ class TaskRepo(BaseRepo):
         """
         Finds all tasks associated with a given project ID.
         """
-        return self.find_by({"project_id": project_id, "is_deleted": False})
+        return super().get_all({"project_id": project_id})
+
 
     def get_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
         Finds a single task by its ID.
         """
-        try:
-            return self.find_one_by({"_id": ObjectId(task_id), "is_deleted": False})
-        except:
-            return None
+        return super().get_by_id(task_id)
+
 
     def create_task(self, data: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Creates a new task document.
+        Creates a new task document and returns the full doc.
         """
-        return self.create(data)
+        inserted_id = super().create(data)  # returns ObjectId
+        return super().get_by_id(str(inserted_id))  # fetch doc using BaseRepo
+
 
     def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Updates a task by its ID.
+        Updates a task by its ID and returns the updated document.
         """
         try:
-            filter_query = {"_id": ObjectId(task_id)}
-            return self.update_one(filter_query, {"$set": update_data})
+            modified_count = super().update(task_id, update_data)
+            if modified_count:
+                return self.get_by_id(task_id)
+            return None
         except:
             return None
+
 
     def delete_task(self, task_id: str) -> bool:
         """
@@ -51,9 +55,14 @@ class TaskRepo(BaseRepo):
         """
         try:
             filter_query = {"_id": ObjectId(task_id)}
-            result = self._collection.update_one(filter_query, {"$set": {"is_deleted": True, "updated_at": datetime.utcnow()}})
+            result = self.collection.update_one(
+                filter_query,
+                {"$set": {"is_deleted": True, "updated_at": datetime.utcnow()}}
+            )
             return result.modified_count > 0
-        except:
+        except Exception as e:
+            # log the error if needed
             return False
+
         
 task_repo=TaskRepo()
