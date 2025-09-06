@@ -1,7 +1,3 @@
-# SynergySphere: Advanced Team Collaboration Platform
-
-![SynergySphere Banner](https://lovable.dev/opengraph-image-p98pqg.png)
-
 SynergySphere is a full-stack web application designed to enhance team productivity and streamline project management. It features a modern, responsive frontend built with React and a robust, high-performance backend powered by FastAPI.
 
 ## ✨ Features
