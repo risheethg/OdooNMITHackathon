@@ -61,12 +61,6 @@ interface ProjectUpdateData {
     description?: string;
 }
 
-// NEW: Type for dashboard stats
-interface DashboardStats {
-    total_projects: number;
-    active_tasks: number;
-}
-
 
 // --- API HELPER FUNCTIONS ---
 
@@ -97,13 +91,6 @@ const updateProject = async ({ projectId, updateData }: { projectId: string; upd
 const deleteProject = async (projectId: string) => {
     const response = await axios.delete(`http://127.0.0.1:8000/projects/${projectId}`, { headers: getAuthHeader() });
     return response.data;
-};
-
-// NEW: Function to fetch dashboard stats
-const fetchDashboardStats = async (): Promise<DashboardStats> => {
-    const response = await axios.get('http://127.0.0.1:8000/stats/', { headers: getAuthHeader() });
-    // Assuming the backend returns the full stats object, but we only need a subset for the dashboard
-    return response.data.data;
 };
 
 
@@ -137,12 +124,6 @@ export default function Dashboard() {
     const { data: projects, isLoading, isError, error } = useQuery<Project[], Error>({
         queryKey: ['userProjects'],
         queryFn: fetchUserProjects,
-    });
-
-    // NEW: Query for dashboard stats
-    const { data: stats, isLoading: areStatsLoading } = useQuery<DashboardStats, Error>({
-        queryKey: ['dashboardStats'],
-        queryFn: fetchDashboardStats,
     });
     
     // --- DATA MUTATIONS (using react-query) ---
@@ -332,18 +313,6 @@ export default function Dashboard() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                  <Card className="card-gradient border-0 shadow-elegant hover-lift"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Projects</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-foreground">{projects?.length || 0}</div></CardContent></Card>
                  <Card className="card-gradient border-0 shadow-elegant hover-lift"><CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Active Tasks</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold text-foreground">--</div></CardContent></Card>
-                 <Card className="card-gradient border-0 shadow-elegant hover-lift">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Projects</CardTitle></CardHeader>
-                    <CardContent>
-                        {areStatsLoading ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold text-foreground">{stats?.total_projects ?? 0}</div>}
-                    </CardContent>
-                 </Card>
-                 <Card className="card-gradient border-0 shadow-elegant hover-lift">
-                    <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Active Tasks</CardTitle></CardHeader>
-                    <CardContent>
-                        {areStatsLoading ? <Skeleton className="h-8 w-1/2" /> : <div className="text-2xl font-bold text-foreground">{stats?.active_tasks ?? '--'}</div>}
-                    </CardContent>
-                 </Card>
             </div>
             
             {/* Dynamic Projects Grid */}
