@@ -23,22 +23,42 @@ class ProjectRepo(BaseRepo):
         """
         return self.get_one({"project_name": project_name})
 
+    def _add_mem_to_proj(self, item_id: str, update_data: Dict[str, Any]) -> int:
+        """
+        CORRECT IMPLEMENTATION using update_one.
+        This method correctly applies update operators to a document.
+        """
+        result = self.collection.update_one(
+            {"_id": ObjectId(item_id)},
+            update_data  # `update_one` correctly interprets {"$addToSet": ...}
+        )
+        return result.modified_count
+
     def add_member(self, project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Adds a member to a project's members list using $addToSet to avoid duplicates."""
         # Use the update method from BaseRepo, which handles ObjectId conversion.
         update_data = {"$addToSet": {"members": user_id}}
-        modified_count = self.update(project_id, update_data)
+        modified_count = self._add_mem_to_proj(project_id, update_data)
 
         if modified_count > 0:
             # If successful, fetch the updated document using the reliable get_by_id.
             return self.get_by_id(project_id)
         return None
+    
+    def _remove_mem_from_proj(self, item_id: str, update_data: Dict[str, Any]) -> int:
+        """
+        Private helper to remove a member using update_one with a $pull operator.
+        """
+        result = self.collection.update_one(
+            {"_id": ObjectId(item_id)},
+            update_data  # `update_one` correctly interprets {"$pull": ...}
+        )
+        return result.modified_count
 
     def remove_member(self, project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Removes a member from a project's members list using $pull."""
-        # Use the update method from BaseRepo.
         update_data = {"$pull": {"members": user_id}}
-        modified_count = self.update(project_id, update_data)
+        modified_count = self._remove_mem_from_proj(project_id, update_data)
 
         if modified_count > 0:
             # If successful, fetch the updated document.

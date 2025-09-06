@@ -139,8 +139,12 @@ const fetchAllUsers = async (): Promise<User[]> => {
     return response.data.data;
 }
 
-const addMemberToProject = async ({ projectId, userId }: { projectId: string; userId: string }) => {
-    const response = await axios.post(`http://127.0.0.1:8000/projects/${projectId}/members`, { user_id: userId }, { headers: getAuthHeader() });
+const addMemberToProject = async ({ projectId, userId, email }: { projectId: string; userId: string; email: string; }) => {
+    const payload = {
+        user_id: userId,
+        email: email,
+    };
+    const response = await axios.post(`http://127.0.0.1:8000/projects/${projectId}/members`, payload, { headers: getAuthHeader() });
     return response.data;
 }
 
@@ -247,7 +251,6 @@ export default function ProjectDetail() {
   })
 
   // --- EVENT HANDLERS ---
-  // FIXED: Implemented all event handlers
   const handleCreateTaskSubmit = (e: FormEvent<HTMLFormElement>) => {
       e.preventDefault();
       if (!projectId) return;
@@ -286,7 +289,6 @@ export default function ProjectDetail() {
     return { projectMembers, availableUsersToAdd };
   }, [project, allUsers]);
 
-  // FIXED: Implemented task grouping logic
   const tasksByStatus = useMemo(() => {
     const grouped: Record<TaskStatus, Task[]> = {
       "To Do": [],
@@ -416,7 +418,7 @@ export default function ProjectDetail() {
                                                 <p className="text-xs text-muted-foreground">{user.email}</p>
                                             </div>
                                         </div>
-                                        <Button size="sm" onClick={() => addMemberMutation.mutate({ projectId: projectId!, userId: user._id })} disabled={addMemberMutation.isPending}>Add</Button>
+                                        <Button size="sm" onClick={() => addMemberMutation.mutate({ projectId: projectId!, userId: user._id, email: user.email })} disabled={addMemberMutation.isPending}>Add</Button>
                                     </div>
                                 ))}
                                 {!areUsersLoading && availableUsersToAdd.length === 0 && <p className="text-center text-sm text-muted-foreground py-4">All users are already in this project.</p>}
