@@ -13,8 +13,10 @@ class Settings(BaseSettings):
     ME_CONFIG_MONGODB_URL: str = "mongodb://localhost:27017/"
     MONGODB_DB: str = "odoohack"
     GEMINI_API_KEY: str = "" 
-    
-
+    #jira key
+    JIRA_URL:str=""
+    JIRA_USERNAME:str=""
+    JIRA_API_KEY:str=""
 
 # Create a single, importable instance of the settings
 settings = Settings()
