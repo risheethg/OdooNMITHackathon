@@ -12,29 +12,25 @@ from app.routes.stats_routes import router as stats_router
 
 
 app = FastAPI(title = "SynergySphere – Advanced Team Collaboration Platform")
+ #--- CORS Middleware Configuration ---
+ #Define the list of origins that are allowed to make requests to this API.
+ #In production, you should restrict this to your actual frontend domain.
+ #Using ["*"] is insecure for production but often acceptable for development.
+origins = [
+    "http://localhost",
+    "http://localhost:3000", # Common for React
+    "http://localhost:8080", # Common for Vue
+    "http://localhost:4200", # Common for Angular
+    "http://localhost:5173", # Common for Vite
+]
 
-# --- CORS Middleware Configuration ---
-
-# Define the list of origins that are allowed to make requests to this API.
-# In production, you should restrict this to your actual frontend domain.
-# Using ["*"] is insecure for production but often acceptable for development.
-#origins = [
-#    "http://localhost",
-#    "http://localhost:3000", # Common for React
-#    "http://localhost:8080", # Common for Vue
-#    "http://localhost:4200", # Common for Angular
-#    "http://localhost:5173", # Common for Vite
-#]
-#
-#app.add_middleware(
-#    CORSMiddleware,
-#    allow_origins=origins,
-#    allow_credentials=True, # Allows cookies to be included in requests
-#    allow_methods=["*"],    # Allows all methods (GET, POST, etc.)
-#    allow_headers=["*"],    # Allows all headers
-#)
-
-
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True, # Allows cookies to be included in requests
+    allow_methods=["*"],    # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],    # Allows all headers
+)
 # --- Include Routers ---
 # It's good practice to add middleware before including routers.
 app.include_router(auth_router)
