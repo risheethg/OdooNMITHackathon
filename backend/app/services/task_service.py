@@ -29,10 +29,13 @@ def create_task(project_id: str, task_data: TaskCreate) -> Task:
         task_dict['created_at'] = datetime.utcnow()
         task_dict['updated_at'] = datetime.utcnow()
         
-        created_doc = task_repo.create_task(data=task_dict)
+        new_task_doc = task_repo.create_task(data=task_dict)
+        if not new_task_doc:
+            raise Exception("Failed to create or retrieve the new task.")
         
-        logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully created new task with ID: {created_doc.get('_id')}")
-        return Task(**created_doc)
+        new_task = Task.model_validate(new_task_doc)
+        logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully created new task with ID: {new_task.task_id}")
+        return new_task
     except Exception as e:
         logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"An unexpected error occurred during task creation. Error: {str(e)}")
         raise
@@ -48,7 +51,7 @@ def get_task(task_id: str) -> Optional[Task]:
         return None
     
     logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully fetched task ID: {task_id}")
-    return Task(**task_doc)
+    return Task.model_validate(task_doc)
 
 def get_tasks_for_project(project_id: str) -> List[Task]:
     """
@@ -57,7 +60,7 @@ def get_tasks_for_project(project_id: str) -> List[Task]:
     logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Fetching tasks for project ID: {project_id}")
     task_docs = task_repo.get_by_project_id(project_id)
     logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Found {len(task_docs)} tasks for project ID: {project_id}")
-    return [Task(**doc) for doc in task_docs]
+    return [Task.model_validate(doc) for doc in task_docs]
 
 def update_task(task_id: str, task_update: TaskUpdate) -> Optional[Task]:
     """
@@ -73,13 +76,13 @@ def update_task(task_id: str, task_update: TaskUpdate) -> Optional[Task]:
     update_data['updated_at'] = datetime.utcnow()
     
     try:
-        updated_doc = task_repo.update_task(task_id, update_data)
-        if not updated_doc:
+        updated_task_doc = task_repo.update_task(task_id, update_data)
+        if not updated_task_doc:
             logs.define_logger(level=logging.WARNING, loggName=inspect.stack()[0], message=f"Task with ID '{task_id}' not found for update.")
             return None
         
         logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully updated task ID: {task_id}")
-        return Task(**updated_doc)
+        return Task.model_validate(updated_task_doc)
     except Exception as e:
         logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"An unexpected error occurred during task update for ID: {task_id}. Error: {str(e)}")
         raise

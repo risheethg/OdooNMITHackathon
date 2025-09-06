@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from typing import Optional, List
 from app.models.task_model import Task, TaskCreate, TaskUpdate
 from app.models.response import ResponseModel
+from app.models.auth_model import User
+from app.services.auth_service import get_current_active_user
 from app.repos.task_repo import TaskRepo
 from app.services.task_service import (
     create_task, 
@@ -11,15 +13,20 @@ from app.services.task_service import (
     delete_task
 )
 
-router = APIRouter(prefix="/tasks", tags=["Tasks"])
+router = APIRouter(
+    prefix="/tasks", 
+    tags=["Tasks"],
+    dependencies=[Depends(get_current_active_user)]
+)
 
 # Route to create a new task
 @router.post("/", response_model=ResponseModel[Task], status_code=status.HTTP_201_CREATED)
-def create_new_task(project_id: str, task_data: TaskCreate):
+def create_new_task(project_id: str, task_data: TaskCreate, current_user: User = Depends(get_current_active_user)):
     """
     Creates a new task for a specified project.
     """
     try:
+        # Pass the creator's ID from the authenticated user
         new_task = create_task(project_id, task_data)
         return ResponseModel(
             status="success",
@@ -33,7 +40,7 @@ def create_new_task(project_id: str, task_data: TaskCreate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {str(e)}")
 
 # Route to get a single task by ID
-@router.get("/{task_id}", response_model=ResponseModel[Optional[Task]], status_code=status.HTTP_200_OK)
+@router.get("/{task_id}", response_model=ResponseModel[Task], status_code=status.HTTP_200_OK)
 def get_task_by_id(task_id: str):
     """
     Retrieves a single task by its ID.
@@ -71,7 +78,7 @@ def update_existing_task(task_id: str, task_update: TaskUpdate):
     """
     try:
         updated_task = update_task(task_id, task_update)
-        if not updated_task:
+        if updated_task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or no changes made.")
         
         return ResponseModel(
@@ -86,7 +93,7 @@ def update_existing_task(task_id: str, task_update: TaskUpdate):
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"An unexpected error occurred: {str(e)}")
 
 # Route to delete a task
-@router.delete("/{task_id}", response_model=ResponseModel[str], status_code=status.HTTP_200_OK)
+@router.delete("/{task_id}", response_model=ResponseModel, status_code=status.HTTP_200_OK)
 def delete_existing_task(task_id: str):
     """
     Deletes a task by its ID (soft delete).
@@ -99,5 +106,5 @@ def delete_existing_task(task_id: str):
         status="success",
         message="Task deleted successfully.",
         status_code=status.HTTP_200_OK,
-        data=f"Task with ID {task_id} has been soft-deleted."
+        data=None
     )

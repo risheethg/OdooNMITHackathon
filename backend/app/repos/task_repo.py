@@ -17,43 +17,39 @@ class TaskRepo(BaseRepo):
     def get_by_project_id(self, project_id: str) -> List[Dict[str, Any]]:
         """
         Finds all tasks associated with a given project ID.
+        Uses the get_all method from BaseRepo.
         """
-        return self.find_by({"project_id": project_id, "is_deleted": False})
+        return self.get_all({"project_id": project_id})
 
     def get_by_id(self, task_id: str) -> Optional[Dict[str, Any]]:
         """
-        Finds a single task by its ID.
+        Finds a single task by its ID using the inherited method.
         """
-        try:
-            return self.find_one_by({"_id": ObjectId(task_id), "is_deleted": False})
-        except:
-            return None
+        return super().get_by_id(task_id)
 
-    def create_task(self, data: Dict[str, Any]) -> Dict[str, Any]:
+    def create_task(self, data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Creates a new task document.
+        Creates a new task document and returns the created document.
         """
-        return self.create(data)
+        inserted_id = self.create(data)
+        if inserted_id:
+            return self.get_by_id(str(inserted_id))
+        return None
 
     def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
         Updates a task by its ID.
         """
-        try:
-            filter_query = {"_id": ObjectId(task_id)}
-            return self.update_one(filter_query, {"$set": update_data})
-        except:
-            return None
+        modified_count = self.update(task_id, update_data)
+        if modified_count > 0:
+            return self.get_by_id(task_id)
+        return None
 
     def delete_task(self, task_id: str) -> bool:
         """
         Soft deletes a task by its ID.
         """
-        try:
-            filter_query = {"_id": ObjectId(task_id)}
-            result = self._collection.update_one(filter_query, {"$set": {"is_deleted": True, "updated_at": datetime.utcnow()}})
-            return result.modified_count > 0
-        except:
-            return False
+        modified_count = self.delete_soft(task_id)
+        return modified_count > 0
         
 task_repo=TaskRepo()
