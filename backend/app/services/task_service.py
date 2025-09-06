@@ -6,6 +6,7 @@ from app.core.logger import logs
 from app.repos.task_repo import task_repo
 from app.models.task_model import Task, TaskCreate, TaskUpdate
 from app.repos.project_repo import project_repo
+from app.services import notification_service # Import the new service
 
 # Assume task_repo and project_repo are instantiated and configured
 # task_repo = TaskRepo(collection=db.tasks)
@@ -28,7 +29,7 @@ def _is_user_valid_for_assignment(project_id: str, user_id: str) -> bool:
     return user_id in project.get("members", [])
 
 
-def create_task(project_id: str, task_data: TaskCreate, creator_id: str) -> Task:
+async def create_task(project_id: str, task_data: TaskCreate, creator_id: str) -> Task:
     """
     Creates a new task within a specified project.
     """
@@ -59,6 +60,13 @@ def create_task(project_id: str, task_data: TaskCreate, creator_id: str) -> Task
         
         new_task = Task.model_validate(new_task_doc)
         logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully created new task with ID: {new_task.task_id}")
+        
+        # --- NOTIFICATION ---
+        # Create a notification for the assignee
+        await notification_service.create_notification(
+            user_id=new_task.assignee,
+            message=f"You have been assigned a new task: '{new_task.title}'"
+        )
         return new_task
     except Exception as e:
         logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"An unexpected error occurred during task creation. Error: {str(e)}")
@@ -86,7 +94,7 @@ def get_tasks_for_project(project_id: str) -> List[Task]:
     logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Found {len(task_docs)} tasks for project ID: {project_id}")
     return [Task.model_validate(doc) for doc in task_docs]
 
-def update_task(task_id: str, task_update: TaskUpdate) -> Optional[Task]:
+async def update_task(task_id: str, task_update: TaskUpdate) -> Optional[Task]:
     """
     Updates an existing task by its ID.
     """
@@ -115,7 +123,14 @@ def update_task(task_id: str, task_update: TaskUpdate) -> Optional[Task]:
             return None
         
         logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Successfully updated task ID: {task_id}")
-        return Task.model_validate(updated_task_doc)
+        updated_task = Task.model_validate(updated_task_doc)
+
+        # --- NOTIFICATION ---
+        # If the assignee was changed, notify the new assignee
+        if 'assignee' in update_data:
+            await notification_service.create_notification(user_id=updated_task.assignee, message=f"A task has been assigned to you: '{updated_task.title}'")
+
+        return updated_task
     except Exception as e:
         logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"An unexpected error occurred during task update for ID: {task_id}. Error: {str(e)}")
         raise

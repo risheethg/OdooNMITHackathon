@@ -21,13 +21,13 @@ router = APIRouter(
 
 # Route to create a new task
 @router.post("/", response_model=ResponseModel[Task], status_code=status.HTTP_201_CREATED)
-def create_new_task(project_id: str, task_data: TaskCreate, current_user: User = Depends(get_current_active_user)):
+async def create_new_task(project_id: str, task_data: TaskCreate, current_user: User = Depends(get_current_active_user)):
     """
     Creates a new task for a specified project.
     """
     try:
         # Pass the creator's ID from the authenticated user to the service
-        new_task = create_task(project_id, task_data, current_user.user_id)
+        new_task = await create_task(project_id, task_data, current_user.user_id)
         return ResponseModel(
             status="success",
             message="Task created successfully.",
@@ -72,12 +72,12 @@ def get_all_tasks_for_project(project_id: str):
 
 # Route to update an existing task
 @router.put("/{task_id}", response_model=ResponseModel[Task], status_code=status.HTTP_200_OK)
-def update_existing_task(task_id: str, task_update: TaskUpdate):
+async def update_existing_task(task_id: str, task_update: TaskUpdate):
     """
     Updates an existing task by its ID.
     """
     try:
-        updated_task = update_task(task_id, task_update)
+        updated_task = await update_task(task_id, task_update)
         if updated_task is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Task not found or no changes made.")
         

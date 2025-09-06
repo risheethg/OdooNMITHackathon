@@ -31,7 +31,7 @@ async def send_new_chat_message(
         logs.define_logger(logging.INFO, None, log_name, message=f"User '{current_user.username}' attempting to POST message to project '{project_id}'.")
         
         # Call the existing service function to create the message
-        new_message = chat_service.create_chat_message(
+        new_message = await chat_service.create_chat_message(
             project_id=project_id,
             user_id=current_user.user_id,
             username=current_user.username,
@@ -137,4 +137,3 @@ async def edit_existing_chat_message(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             content=response.failure(message="An unexpected error occurred.")
         )
-

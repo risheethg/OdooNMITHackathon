@@ -90,6 +90,37 @@ async def debug_chat_websocket_endpoint(
     finally:
         print("--- DEBUGGER: Connection closed. ---")
 
+@router.websocket("/ws/notifications")
+async def notification_websocket_endpoint(
+    websocket: WebSocket,
+    token: str = Query(...)
+):
+    """
+    WebSocket endpoint for receiving real-time notifications.
+    The channel is specific to the authenticated user.
+    """
+    log_name = inspect.stack()[0]
+    current_user = auth_service.get_current_user_from_token(token)
+    if not current_user:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token")
+        return
+
+    # Accept the connection *after* successful authentication
+    await websocket.accept()
+
+    # The user_id serves as the unique channel for this user's notifications
+    user_channel_id = current_user.user_id
+    await manager.connect(websocket, user_channel_id)
+    logs.define_logger(logging.INFO, None, log_name, message=f"Notification WebSocket connected for user '{current_user.username}'.")
+    
+    try:
+        while True:
+            # Keep the connection alive by waiting for messages (which we can ignore)
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, user_channel_id)
+        logs.define_logger(logging.INFO, None, log_name, message=f"Notification WebSocket disconnected for user '{current_user.username}'.")
+
 @router.websocket("/ws/chat/{project_id}")
 async def chat_websocket_endpoint(
     websocket: WebSocket,
@@ -145,7 +176,7 @@ async def chat_websocket_endpoint(
             
             # 5. Save the message to the database via the service.
             message_data = ChatMessageCreate(message=message_text)
-            new_message = chat_service.create_chat_message(
+            new_message = await chat_service.create_chat_message(
                 project_id=project_id,
                 user_id=current_user.user_id,
                 username=current_user.username,

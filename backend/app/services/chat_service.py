@@ -8,6 +8,7 @@ from app.core.logger import logs
 from app.repos.chat_repo import ChatRepo
 from app.repos.project_repo import project_repo
 from app.models.chat_model import ChatMessage, ChatMessageCreate, ChatMessageUpdate
+from app.services import notification_service # Import notification service
 
 # A single instance for the service layer
 chat_repo = ChatRepo()
@@ -48,7 +49,7 @@ def get_chat_history(project_id: str, user_id: str, page: int, limit: int) -> Li
     logs.define_logger(logging.INFO, None, log_name, message=f"Successfully retrieved {len(history_docs)} messages for project '{project_id}'.")
     return [ChatMessage.model_validate(doc) for doc in history_docs]
 
-def create_chat_message(project_id: str, user_id: str, username: str, data: ChatMessageCreate) -> ChatMessage:
+async def create_chat_message(project_id: str, user_id: str, username: str, data: ChatMessageCreate) -> ChatMessage:
     """Creates a new chat message after verifying user membership."""
     log_name = inspect.stack()[0]
     logs.define_logger(logging.INFO, None, log_name, message=f"User '{username}' attempting to send message to project '{project_id}'.")
@@ -70,7 +71,31 @@ def create_chat_message(project_id: str, user_id: str, username: str, data: Chat
     inserted_id = chat_repo.create(message_doc)
     new_message = chat_repo.get_by_id(str(inserted_id))
     logs.define_logger(logging.INFO, None, log_name, message=f"Successfully created message '{inserted_id}' in project '{project_id}'.")
-    return ChatMessage.model_validate(new_message)
+    
+    validated_message = ChatMessage.model_validate(new_message)
+
+    # --- NOTIFICATION LOGIC ---
+    # Notify all other members of the project about the new message.
+    project = project_repo.get_by_id(project_id)
+    if project:
+        # Convert all member ObjectIds to strings
+        member_id_strs = {str(m) for m in project.get("members", [])}
+        
+        # Get the creator's ID as a string
+        creator_id = project.get("created_by")
+        if creator_id:
+            member_id_strs.add(str(creator_id))
+
+        # Iterate over the clean set of string IDs
+        for member_id_str in member_id_strs:
+            # Don't send a notification to the user who sent the message
+            if member_id_str != user_id:
+                await notification_service.create_notification(
+                    user_id=member_id_str,
+                    message=f"New message in '{project.get('project_name')}': '{username}' said: {data.message[:30]}...'"
+                )
+
+    return validated_message
 
 def edit_chat_message(message_id: str, user_id: str, data: ChatMessageUpdate) -> Optional[ChatMessage]:
     """Updates an existing chat message after verifying ownership."""
@@ -101,4 +126,3 @@ def edit_chat_message(message_id: str, user_id: str, data: ChatMessageUpdate) ->
         
     logs.define_logger(logging.INFO, None, log_name, message=f"No changes made to message '{message_id}'. Update data was likely the same.")
     return None
-
