@@ -50,3 +50,4 @@ class AuthRepo(BaseRepo):
         """
         return self.get_one({"email": email})
 
+auth_repo = AuthRepo()

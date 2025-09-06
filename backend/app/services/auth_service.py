@@ -3,9 +3,23 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, HTTPBearer, HTTPAuthorizationCredentials
 from typing import Annotated
 
-from ..repos.auth_repo import AuthRepo
+from ..repos.auth_repo import AuthRepo, auth_repo
 from ..models.auth_model import User, UserCreate, TokenData
 from ..core.security import verify_password, decode_access_token
+import logging
+import inspect
+from typing import Optional
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from jose import JWTError
+from typing_extensions import Annotated
+
+# Your project's specific imports
+from app.core.logger import logs
+from app.core import security
+from app.models.auth_model import User, TokenData
+
+
 
 # This scheme is still used by FastAPI to identify the login endpoint for the UI.
 # We don't use it directly for getting the token anymore, but it's good to keep.
@@ -53,6 +67,34 @@ class AuthService:
             
         return user_dict
 
+
+def get_current_user_from_token(token: str) -> Optional[User]:
+    """
+    Decodes a JWT token string, validates it, and retrieves the corresponding user.
+    This is a direct function used by WebSockets.
+    
+    :param token: The raw JWT token string.
+    :return: The authenticated User object or None if authentication fails.
+    """
+    log_name = inspect.stack()[0]
+    try:
+        payload = security.decode_access_token(token)
+        username: str = payload.get("sub")
+        if username is None:
+            return None
+        token_data = TokenData(username=username)
+    except JWTError:
+        logs.define_logger(logging.WARNING, None, log_name, message="WebSocket auth failed: Could not validate token.")
+        return None
+
+    user_dict = auth_repo.get_user_by_username(username=token_data.username)
+    if user_dict is None:
+        logs.define_logger(logging.WARNING, None, log_name, message=f"WebSocket auth failed: User '{username}' not found.")
+        return None
+        
+    # Use model_validate to correctly handle field aliasing (e.g., _id -> user_id)
+    # and type conversion (ObjectId -> str).
+    return User.model_validate(user_dict)
 # --- UPDATED: Dependency function to use the new scheme ---
 def get_current_active_user(
     # Use the new bearer_scheme. It returns a credentials object.
