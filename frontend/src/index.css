@@ -1,0 +1,236 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SynergySphere Design System - Advanced Team Collaboration Platform */
+
+@layer base {
+  :root {
+    /* Core Brand Colors */
+    --background: 240 10% 98%;
+    --foreground: 230 15% 15%;
+
+    /* Surface Colors */
+    --card: 0 0% 100%;
+    --card-foreground: 230 15% 15%;
+    --elevated: 240 15% 96%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 230 15% 15%;
+
+    /* Brand Colors */
+    --primary: 235 85% 55%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 235 85% 85%;
+    --primary-dark: 235 85% 35%;
+
+    --secondary: 160 60% 45%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-light: 160 60% 85%;
+
+    --accent: 25 95% 55%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 25 95% 85%;
+
+    /* Neutral Colors */
+    --muted: 240 5% 96%;
+    --muted-foreground: 240 4% 46%;
+
+    --border: 240 6% 90%;
+    --input: 240 6% 90%;
+    --ring: 235 85% 55%;
+
+    /* Status Colors */
+    --success: 160 60% 45%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 95% 55%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(235 85% 55%), hsl(260 85% 65%));
+    --gradient-secondary: linear-gradient(135deg, hsl(160 60% 45%), hsl(180 60% 55%));
+    --gradient-accent: linear-gradient(135deg, hsl(25 95% 55%), hsl(45 95% 60%));
+    --gradient-hero: linear-gradient(135deg, hsl(235 85% 55%) 0%, hsl(260 85% 65%) 50%, hsl(25 95% 55%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(0 0% 100%) 0%, hsl(240 15% 98%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(235 85% 55% / 0.05);
+    --shadow-md: 0 4px 6px -1px hsl(235 85% 55% / 0.1), 0 2px 4px -1px hsl(235 85% 55% / 0.06);
+    --shadow-lg: 0 10px 15px -3px hsl(235 85% 55% / 0.1), 0 4px 6px -2px hsl(235 85% 55% / 0.05);
+    --shadow-xl: 0 20px 25px -5px hsl(235 85% 55% / 0.1), 0 10px 10px -5px hsl(235 85% 55% / 0.04);
+    --shadow-glow: 0 0 20px hsl(235 85% 55% / 0.3);
+
+    --radius: 0.75rem;
+
+    --sidebar-background: 0 0% 98%;
+
+    --sidebar-foreground: 240 5.3% 26.1%;
+
+    --sidebar-primary: 240 5.9% 10%;
+
+    --sidebar-primary-foreground: 0 0% 98%;
+
+    --sidebar-accent: 240 4.8% 95.9%;
+
+    --sidebar-accent-foreground: 240 5.9% 10%;
+
+    --sidebar-border: 220 13% 91%;
+
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+
+  .dark {
+    /* Core Brand Colors */
+    --background: 230 15% 8%;
+    --foreground: 240 10% 95%;
+
+    /* Surface Colors */
+    --card: 230 15% 12%;
+    --card-foreground: 240 10% 95%;
+    --elevated: 230 15% 15%;
+
+    --popover: 230 15% 12%;
+    --popover-foreground: 240 10% 95%;
+
+    /* Brand Colors */
+    --primary: 235 85% 65%;
+    --primary-foreground: 0 0% 100%;
+    --primary-light: 235 85% 85%;
+    --primary-dark: 235 85% 45%;
+
+    --secondary: 160 60% 55%;
+    --secondary-foreground: 0 0% 100%;
+    --secondary-light: 160 60% 85%;
+
+    --accent: 25 95% 65%;
+    --accent-foreground: 0 0% 100%;
+    --accent-light: 25 95% 85%;
+
+    /* Neutral Colors */
+    --muted: 230 10% 20%;
+    --muted-foreground: 240 5% 65%;
+
+    --border: 230 10% 25%;
+    --input: 230 10% 25%;
+    --ring: 235 85% 65%;
+
+    /* Status Colors */
+    --success: 160 60% 55%;
+    --success-foreground: 0 0% 100%;
+    --warning: 45 95% 65%;
+    --warning-foreground: 0 0% 100%;
+    --destructive: 0 84% 70%;
+    --destructive-foreground: 0 0% 100%;
+
+    /* Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(235 85% 65%), hsl(260 85% 75%));
+    --gradient-secondary: linear-gradient(135deg, hsl(160 60% 55%), hsl(180 60% 65%));
+    --gradient-accent: linear-gradient(135deg, hsl(25 95% 65%), hsl(45 95% 70%));
+    --gradient-hero: linear-gradient(135deg, hsl(235 85% 65%) 0%, hsl(260 85% 75%) 50%, hsl(25 95% 65%) 100%);
+    --gradient-card: linear-gradient(145deg, hsl(230 15% 12%) 0%, hsl(230 15% 15%) 100%);
+
+    /* Shadows */
+    --shadow-sm: 0 1px 2px 0 hsl(0 0% 0% / 0.15);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.3), 0 2px 4px -1px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -2px hsl(0 0% 0% / 0.2);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.4), 0 10px 10px -5px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 20px hsl(235 85% 65% / 0.4);
+
+    --sidebar-background: 230 15% 10%;
+    --sidebar-foreground: 240 10% 95%;
+    --sidebar-primary: 235 85% 65%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 230 15% 18%;
+    --sidebar-accent-foreground: 240 10% 95%;
+    --sidebar-border: 230 10% 25%;
+    --sidebar-ring: 235 85% 65%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+@layer components {
+  /* Hero Component Styles */
+  .hero-gradient {
+    background: var(--gradient-hero);
+  }
+  
+  .card-gradient {
+    background: var(--gradient-card);
+  }
+  
+  .primary-gradient {
+    background: var(--gradient-primary);
+  }
+  
+  .secondary-gradient {
+    background: var(--gradient-secondary);
+  }
+  
+  .accent-gradient {
+    background: var(--gradient-accent);
+  }
+
+  /* Shadow Utilities */
+  .shadow-elegant {
+    box-shadow: var(--shadow-lg);
+  }
+  
+  .shadow-glow {
+    box-shadow: var(--shadow-glow);
+  }
+
+  /* Animation Classes */
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+  
+  .hover-lift {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+  
+  .hover-lift:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-xl);
+  }
+
+  /* Status Indicators */
+  .status-badge {
+    @apply inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium;
+  }
+  
+  .status-todo {
+    @apply bg-muted text-muted-foreground;
+  }
+  
+  .status-progress {
+    @apply bg-accent/20 text-accent-foreground;
+  }
+  
+  .status-done {
+    @apply bg-secondary/20 text-secondary-foreground;
+  }
+}
+
+@layer utilities {
+  /* Custom Keyframes */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-10px); }
+  }
+  
+  @keyframes pulse-glow {
+    0%, 100% { box-shadow: var(--shadow-md); }
+    50% { box-shadow: var(--shadow-glow); }
+  }
+}
