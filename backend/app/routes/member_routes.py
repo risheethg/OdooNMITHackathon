@@ -1,40 +1,59 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from pymongo.mongo_client import MongoClient
 
 from app.models.member_model import MemberAdditionRequest, MemberRemovalRequest
 from app.models.project_model import Project
-from app.services.member_service import ProjectService
-from app.repos.project_repo import ProjectRepo
+from app.models.response import ResponseModel
+from app.models.auth_model import User
+from app.services.member_service import ProjectService, get_project_service
+from app.services.auth_service import get_current_active_user
+from app.services.project_service import get_project_by_id # To check ownership
 
-# Assume you have a global MongoDB client and collections setup
-# For simplicity, let's represent the dependency injection here
-def get_project_service() -> ProjectService:
-    # This is a simplified dependency injection setup
-    client = MongoClient("mongodb://localhost:27017/") # Replace with your URI
-    db = client.synergysphere_db
-    project_collection = db.projects
-    project_repo = ProjectRepo(collection=project_collection)
-    return ProjectService(project_repo=project_repo)
+router = APIRouter(
+    prefix="/projects/{project_id}/members",
+    tags=["Project Members"],
+    dependencies=[Depends(get_current_active_user)]
+)
 
-router = APIRouter()
-
-@router.post("/projects/{project_id}/members", response_model=Project, status_code=status.HTTP_200_OK)
-def add_team_member_route(project_id: str, member_request: MemberAdditionRequest, service: ProjectService = Depends(get_project_service)):
-    """
-    Adds a team member to a project.
-    """
-    member_data = member_request.model_dump()
-    updated_project = service.add_member_to_project(project_id, member_data)
-    if not updated_project:
+@router.post("/", response_model=ResponseModel[Project], status_code=status.HTTP_200_OK)
+async def add_team_member_route(
+    project_id: str, 
+    member_request: MemberAdditionRequest, 
+    service: ProjectService = Depends(get_project_service),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Adds a team member to a project. Only the project creator can add members."""
+    project = get_project_by_id(project_id)
+    if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return updated_project
+    if project.created_by != current_user.user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the project creator can add members.")
 
-@router.delete("/projects/{project_id}/members", response_model=Project, status_code=status.HTTP_200_OK)
-def remove_team_member_route(project_id: str, member_request: MemberRemovalRequest, service: ProjectService = Depends(get_project_service)):
-    """
-    Removes a team member from a project.
-    """
-    updated_project = service.remove_member_from_project(project_id, member_request.user_id)
-    if not updated_project:
+    try:
+        updated_project = service.add_member_to_project(project_id, member_request.user_id)
+        return ResponseModel(status="success", message="Member added successfully.", data=updated_project)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))
+
+@router.delete("/", response_model=ResponseModel[Project], status_code=status.HTTP_200_OK)
+async def remove_team_member_route(
+    project_id: str, 
+    member_request: MemberRemovalRequest, 
+    service: ProjectService = Depends(get_project_service),
+    current_user: User = Depends(get_current_active_user)
+):
+    """Removes a team member from a project. Only the project creator can remove members."""
+    project = get_project_by_id(project_id)
+    if not project:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
-    return updated_project
+    if project.created_by != current_user.user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Only the project creator can remove members.")
+
+    try:
+        updated_project = service.remove_member_from_project(project_id, member_request.user_id)
+        return ResponseModel(status="success", message="Member removed successfully.", data=updated_project)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=str(e))

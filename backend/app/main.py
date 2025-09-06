@@ -6,6 +6,7 @@ from app.routes.chat_routes import router as chat_router
 from app.routes.task_routes import router as task_router
 from app.routes.websocket_routes import router as websocket_router
 from app.routes.notification_routes import router as notification_router # Import the new router
+from app.routes.member_routes import router as member_router
 
 
 
@@ -41,6 +42,7 @@ app.include_router(task_router)
 app.include_router(chat_router)
 app.include_router(task_router)
 app.include_router(notification_router) # Add the notification router
+app.include_router(member_router)
 app.include_router(websocket_router)
 
 
