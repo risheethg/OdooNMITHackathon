@@ -2,3 +2,4 @@ fastapi
 pymongo
 bson
 pydantic
+google-generativeai

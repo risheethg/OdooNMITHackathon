@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     # MongoDB Settings
     ME_CONFIG_MONGODB_URL: str = "mongodb://localhost:27017/"
     MONGODB_DB: str = "odoohack"
+    GEMINI_API_KEY: str = "AIzaSyBPxLlYDJkJa1eC49cDYKOU-BSXWWEoW3g" 
     
 
 

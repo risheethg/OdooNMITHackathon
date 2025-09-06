@@ -8,6 +8,8 @@ from app.core.logger import logs
 from app.repos.chat_repo import ChatRepo
 from app.repos.project_repo import project_repo
 from app.models.chat_model import ChatMessage, ChatMessageCreate, ChatMessageUpdate
+from app.services import llm_service # Import the new LLM service
+from app.utils.websocket_manager import manager # Import for broadcasting LLM response
 from app.services import notification_service # Import notification service
 
 # A single instance for the service layer
@@ -94,6 +96,43 @@ async def create_chat_message(project_id: str, user_id: str, username: str, data
                     user_id=member_id_str,
                     message=f"New message in '{project.get('project_name')}': '{username}' said: {data.message[:30]}...'"
                 )
+
+    # --- LLM INTEGRATION ---
+    # Check if the message starts with "@Gemini"
+    if data.message.lower().startswith("@gemini"):
+        llm_query = data.message[len("@gemini"):].strip()
+        logs.define_logger(logging.INFO, None, log_name, message=f"User '{username}' triggered Gemini AI with query: '{llm_query}'")
+
+        # Fetch recent chat history for context (e.g., last 10 messages)
+        # This fetches history *including* the user's message we just saved.
+        recent_history = get_chat_history(project_id, user_id, page=1, limit=10)
+
+        # Generate response from LLM
+        llm_response_text = await llm_service.generate_gemini_response(
+            project_id=project_id,
+            chat_history=recent_history,
+            user_query=llm_query
+        )
+
+        # Store LLM's response in chat history
+        llm_message_doc = {
+            "project_id": project_id,
+            "user_id": "gemini_ai_id", # A unique ID for the AI user
+            "username": "Gemini AI",   # Display name for the AI
+            "message": llm_response_text,
+            "is_edited": False,
+            "created_at": datetime.now(timezone.utc),
+            "updated_at": datetime.now(timezone.utc),
+        }
+        llm_inserted_id = chat_repo.create(llm_message_doc)
+        llm_new_message = chat_repo.get_by_id(str(llm_inserted_id))
+        llm_validated_message = ChatMessage.model_validate(llm_new_message)
+        logs.define_logger(logging.INFO, None, log_name, message=f"Gemini AI response stored as message '{llm_inserted_id}'.")
+
+        # Broadcast the LLM's response immediately to all clients
+        llm_broadcast_payload = {"event": "new_message", "data": llm_validated_message.model_dump(mode="json")}
+        await manager.broadcast(project_id, llm_broadcast_payload)
+        logs.define_logger(logging.INFO, None, log_name, message="Gemini AI response broadcasted to WebSocket clients.")
 
     return validated_message
 
