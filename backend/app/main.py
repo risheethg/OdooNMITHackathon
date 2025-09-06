@@ -36,6 +36,7 @@ app = FastAPI(title = "SynergySphere – Advanced Team Collaboration Platform")
 # It's good practice to add middleware before including routers.
 app.include_router(auth_router)
 app.include_router(project_router)
+app.include_router(task_router)
 app.include_router(chat_router)
 app.include_router(task_router)
 app.include_router(websocket_router)

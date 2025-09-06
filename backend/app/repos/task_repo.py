@@ -38,12 +38,13 @@ class TaskRepo(BaseRepo):
 
     def update_task(self, task_id: str, update_data: Dict[str, Any]) -> Optional[Dict[str, Any]]:
         """
-        Updates a task by its ID.
+        Updates a task by its ID and returns the updated document.
         """
         modified_count = self.update(task_id, update_data)
         if modified_count > 0:
             return self.get_by_id(task_id)
         return None
+
 
     def delete_task(self, task_id: str) -> bool:
         """
