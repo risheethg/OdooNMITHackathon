@@ -16,8 +16,10 @@ import {
   AlertTriangle,
   Trash2,
   Edit,
-  UserPlus,
-  X
+  UserPlus, // Icon for adding a user
+  X,        // Icon for closing/removing
+  ChevronDown, // Icon for minimizing
+  ChevronUp,   // Icon for maximizing
 } from "lucide-react";
 
 // UI Components from shadcn/ui
@@ -200,6 +202,7 @@ export default function ProjectDetail() {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState("");
   const socketRef = useRef<WebSocket | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(true);
   const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
 
@@ -549,43 +552,51 @@ export default function ProjectDetail() {
                 </CardContent>
             </Card>
 
-            {/* Discussion Panel (Mock Data) */}
-            <div className="flex flex-col h-[32rem]">
-                <div className="flex items-center gap-2 mb-4">
-                    <MessageSquare className="w-5 h-5 text-primary" />
-                    <h3 className="font-semibold text-foreground">Project Chat</h3>
-                </div>
-                <Card className="card-gradient border-0 shadow-elegant flex-grow flex flex-col">
-                    <CardContent ref={chatContainerRef} className="p-4 flex-grow overflow-y-auto space-y-4">
-                        {chatMessages.map((msg, index) => (
-                            <div key={msg._id || index} className={`flex flex-col ${msg.is_system ? 'items-center' : 'items-start'}`}>
-                                {msg.is_system ? (
-                                    <Badge variant="secondary" className="text-xs">{msg.message}</Badge>
-                                ) : (
-                                    <div className={`flex items-start gap-2.5 ${msg.username === 'Gemini' ? 'w-full' : ''}`}>
-                                        <Avatar className={`w-8 h-8 ${msg.username === 'Gemini' ? 'bg-primary/20 text-primary' : ''}`}>
-                                            <AvatarFallback className="text-xs">
-                                                {msg.username === 'Gemini' ? <Bot className="h-4 w-4" /> : getInitials(msg.username || 'S')}
-                                            </AvatarFallback>
-                                        </Avatar>
-                                        <div className="flex flex-col gap-1">
-                                            <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                                                <span className={`text-sm font-semibold ${msg.username === 'Gemini' ? 'text-primary' : 'text-foreground'}`}>{msg.username}</span>
-                                                <span className="text-xs font-normal text-muted-foreground">{msg.created_at}</span>
+            {/* Chat Panel - Fixed to bottom right */}
+            <div className="fixed bottom-4 right-4 z-50 w-full max-w-sm ">
+                <Card className="card-gradient border-0 shadow-elegant flex flex-col transition-all duration-300 ease-in-out" style={{ height: isChatOpen ? '32rem' : 'auto' }}>
+                    {/* Chat Header - Clickable to toggle */}
+                    <div 
+                        className="flex items-center justify-between p-3 cursor-pointer"
+                        onClick={() => setIsChatOpen(!isChatOpen)}
+                    >
+                        <MessageSquare className="w-5 h-5 text-primary" />
+                        <h3 className="font-semibold text-foreground">Project Chat</h3>
+                        <Button variant="ghost" size="icon" className="h-6 w-6">
+                            {isChatOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
+                        </Button>
+                    </div>
+                    {/* Chat Body - Collapsible */}
+                    {isChatOpen && (
+                        <>
+                            <CardContent ref={chatContainerRef} className="p-4 flex-grow overflow-y-auto space-y-4">
+                                {chatMessages.map((msg, index) => (
+                                    <div key={msg._id || index} className={`flex flex-col ${msg.is_system ? 'items-center' : 'items-start'}`}>
+                                        {msg.is_system ? (
+                                            <Badge variant="secondary" className="text-xs">{msg.message}</Badge>
+                                        ) : (
+                                            <div className={`flex items-start gap-2.5 ${msg.username === 'Gemini' ? 'w-full' : ''}`}>
+                                                <Avatar className={`w-8 h-8 ${msg.username === 'Gemini' ? 'bg-primary/20 text-primary' : ''}`}>
+                                                    <AvatarFallback className="text-xs">{msg.username === 'Gemini' ? <Bot className="h-4 w-4" /> : getInitials(msg.username || 'S')}</AvatarFallback>
+                                                </Avatar>
+                                                <div className="flex flex-col gap-1">
+                                                    <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                                                        <span className={`text-sm font-semibold ${msg.username === 'Gemini' ? 'text-primary' : 'text-foreground'}`}>{msg.username}</span>
+                                                        <span className="text-xs font-normal text-muted-foreground">{msg.created_at}</span>
+                                                    </div>
+                                                    <div className={`leading-snug p-2.5 rounded-lg text-sm font-normal ${msg.username === 'Gemini' ? 'bg-primary/10 text-primary-foreground' : 'bg-muted/50 text-foreground'}`}>{msg.message}</div>
+                                                </div>
                                             </div>
-                                            <div className={`leading-snug p-2.5 rounded-lg text-sm font-normal ${msg.username === 'Gemini' ? 'bg-primary/10 text-primary-foreground' : 'bg-muted/50 text-foreground'}`}>
-                                                {msg.message}
-                                            </div>
-                                        </div>
+                                        )}
                                     </div>
-                                )}
-                            </div>
-                        ))}
-                    </CardContent>
-                    <form onSubmit={handleSendMessage} className="p-4 border-t border-border/20 flex items-center gap-2">
-                        <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message or @gemini..." className="flex-grow" autoComplete="off" disabled={geminiMutation.isPending} />
-                        <Button type="submit" size="icon" className="primary-gradient" disabled={geminiMutation.isPending || !chatInput.trim()}><Send className="h-4 w-4" /></Button>
-                    </form>
+                                ))}
+                            </CardContent>
+                            <form onSubmit={handleSendMessage} className="p-4 border-t border-border/20 flex items-center gap-2">
+                                <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message or @gemini..." className="flex-grow" autoComplete="off" disabled={geminiMutation.isPending} />
+                                <Button type="submit" size="icon" className="primary-gradient" disabled={geminiMutation.isPending || !chatInput.trim()}><Send className="h-4 w-4" /></Button>
+                            </form>
+                        </>
+                    )}
                 </Card>
             </div>
         </div>
