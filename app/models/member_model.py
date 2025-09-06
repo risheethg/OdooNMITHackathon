@@ -22,3 +22,7 @@ class MemberRemovalRequest(BaseModel):
     Schema for removing a team member.
     """
     user_id: str
+
+class MemberUpdate(BaseModel):
+    """Schema for adding or removing a member from a project."""
+    user_id: str = Field(..., description="The ID of the user to add or remove.")
