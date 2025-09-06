@@ -25,31 +25,24 @@ class ProjectRepo(BaseRepo):
 
     def add_member(self, project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Adds a member to a project's members list using $addToSet to avoid duplicates."""
-        # Convert string ID to ObjectId if needed
-        object_id = ObjectId(project_id)
-        
-        filter_query = {"_id": object_id}
+        # Use the update method from BaseRepo, which handles ObjectId conversion.
         update_data = {"$addToSet": {"members": user_id}}
-        
-        # Use update_one for atomic update and get the result
-        result: UpdateResult = self._collection.update_one(filter_query, update_data)
-        
-        if result.modified_count > 0:
-            return self.find_one_by(filter_query)
+        modified_count = self.update(project_id, update_data)
+
+        if modified_count > 0:
+            # If successful, fetch the updated document using the reliable get_by_id.
+            return self.get_by_id(project_id)
         return None
 
     def remove_member(self, project_id: str, user_id: str) -> Optional[Dict[str, Any]]:
         """Removes a member from a project's members list using $pull."""
-        # Convert string ID to ObjectId if needed
-        object_id = ObjectId(project_id)
-
-        filter_query = {"_id": object_id}
+        # Use the update method from BaseRepo.
         update_data = {"$pull": {"members": user_id}}
-        
-        result: UpdateResult = self._collection.update_one(filter_query, update_data)
+        modified_count = self.update(project_id, update_data)
 
-        if result.modified_count > 0:
-            return self.find_one_by(filter_query)
+        if modified_count > 0:
+            # If successful, fetch the updated document.
+            return self.get_by_id(project_id)
         return None
 
 project_repo=ProjectRepo()

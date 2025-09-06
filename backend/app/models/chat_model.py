@@ -13,16 +13,15 @@ class ChatMessage(BaseModel):
     created_at: datetime
     updated_at: datetime
 
-    # This validator runs before Pydantic checks the type.
-    # It converts the ObjectId to a string, so validation passes.
     @field_validator("id", mode="before")
     @classmethod
     def convert_objectid_to_str(cls, v: Any) -> str:
-        """Custom validator to convert ObjectId to string for the 'id' field."""
+        """Convert ObjectId to string before validation for the 'id' field."""
         if isinstance(v, ObjectId):
             return str(v)
+        # If it's already a string, let it pass through.
         return v
-        
+
     # Pydantic V2 model configuration
     model_config = ConfigDict(
         populate_by_name=True,        # Allows using the 'id' field name to be populated by the '_id' alias from data.
@@ -35,4 +34,3 @@ class ChatMessageCreate(BaseModel):
 
 class ChatMessageUpdate(BaseModel):
     message: str = Field(..., min_length=1, description="The updated content of the chat message.")
-
