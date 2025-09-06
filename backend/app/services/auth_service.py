@@ -6,7 +6,7 @@ from typing import Annotated
 from ..repos.auth_repo import AuthRepo, auth_repo
 from ..models.auth_model import User, UserCreate, TokenData
 from ..core.security import verify_password, decode_access_token
-import logging
+import logging, typing
 import inspect
 from typing import Optional
 from fastapi import Depends, HTTPException, status
@@ -66,6 +66,12 @@ class AuthService:
             return None
             
         return user_dict
+
+    def get_all_users(self, current_user_id: str) -> typing.List[dict]:
+        """
+        Retrieves all users from the repository, excluding the current user.
+        """
+        return self.repo.get_all_users(current_user_id=current_user_id)
 
 
 def get_current_user_from_token(token: str) -> Optional[User]:
