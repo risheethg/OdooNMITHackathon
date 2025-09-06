@@ -1,6 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes.auth_routes import router as auth_router # Assuming your router is in routes/auth_routes.py
+from app.routes.auth_routes import router as auth_router# Assuming your router is in routes/auth_routes.py
+from app.routes.project_routes import router as project_router
+
 
 app = FastAPI(title = "SynergySphere – Advanced Team Collaboration Platform")
 
@@ -29,6 +31,9 @@ app.add_middleware(
 # --- Include Routers ---
 # It's good practice to add middleware before including routers.
 app.include_router(auth_router)
+app.include_router(project_router)
+
+
 
 
 # --- Root Endpoint ---

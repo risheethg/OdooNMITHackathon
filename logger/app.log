@@ -1,0 +1,28 @@
+2025-09-06 10:48:45,408 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\sreeh\AppData\Local\Programs\Python\Python312\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-09-06 11:03:08,134 - passlib.handlers.bcrypt - WARNING - (trapped) error reading bcrypt version
+Traceback (most recent call last):
+  File "C:\Users\sreeh\AppData\Local\Programs\Python\Python312\Lib\site-packages\passlib\handlers\bcrypt.py", line 620, in _load_backend_mixin
+    version = _bcrypt.__about__.__version__
+              ^^^^^^^^^^^^^^^^^
+AttributeError: module 'bcrypt' has no attribute '__about__'
+2025-09-06 11:05:58,869 - APP-BE - INFO - MESSAGE: Attempting to create a new project with name: 'test1' by user: '68bbc7949355940bae8c8577' - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:create_project
+2025-09-06 11:05:58,875 - APP-BE - INFO - MESSAGE: Attempting to create project in Jira with key: 'TEST1' - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:create_project
+2025-09-06 11:05:58,880 - APP-BE - INFO - MESSAGE: Jira project creation for key 'TEST1': Starting... - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\jira_service.py:create_project
+2025-09-06 11:05:58,882 - APP-BE - ERROR - MESSAGE: FATAL: Jira environment variables (JIRA_URL, JIRA_USERNAME, JIRA_API_TOKEN) are not set. - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\jira_service.py:get_jira_client
+2025-09-06 11:05:58,885 - APP-BE - WARNING - MESSAGE: Failed to create project in Jira. Proceeding with local creation only. Error: Jira credentials are not configured in environment variables. - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:create_project
+2025-09-06 11:05:58,887 - APP-BE - INFO - MESSAGE: Creating project in local database. - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:create_project
+2025-09-06 11:05:58,922 - APP-BE - INFO - MESSAGE: Successfully created project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:create_project
+2025-09-06 11:07:37,431 - APP-BE - INFO - MESSAGE: Fetching all projects for user ID: 68bbc7949355940bae8c8577 - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_all_projects
+2025-09-06 11:07:37,439 - APP-BE - INFO - MESSAGE: Successfully retrieved 1 projects for user 68bbc7949355940bae8c8577. - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_all_projects
+2025-09-06 11:08:00,933 - APP-BE - INFO - MESSAGE: Fetching project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_project_by_id
+2025-09-06 11:08:00,938 - APP-BE - INFO - MESSAGE: Found project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_project_by_id
+2025-09-06 11:08:11,983 - APP-BE - INFO - MESSAGE: Attempting to delete project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:delete_project
+2025-09-06 11:08:11,985 - APP-BE - INFO - MESSAGE: Fetching project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_project_by_id
+2025-09-06 11:08:11,988 - APP-BE - INFO - MESSAGE: Found project with ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:get_project_by_id
+2025-09-06 11:08:11,991 - APP-BE - INFO - MESSAGE: Soft-deleting project with ID: 68bbc83e8e0017d6840a191f from local database. - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:delete_project
+2025-09-06 11:08:12,000 - APP-BE - INFO - MESSAGE: Successfully soft-deleted project ID: 68bbc83e8e0017d6840a191f - FILE: C:\Users\sreeh\Documents\GitHub\odoohack\app\services\project_service.py:delete_project
