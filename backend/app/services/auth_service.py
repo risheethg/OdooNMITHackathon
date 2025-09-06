@@ -71,7 +71,7 @@ class AuthService:
 def get_current_user_from_token(token: str) -> Optional[User]:
     """
     Decodes a JWT token string, validates it, and retrieves the corresponding user.
-    This is a direct function used by WebSockets.
+    This version is simplified to directly use the decoded payload.
     
     :param token: The raw JWT token string.
     :return: The authenticated User object or None if authentication fails.
@@ -79,22 +79,25 @@ def get_current_user_from_token(token: str) -> Optional[User]:
     log_name = inspect.stack()[0]
     try:
         payload = security.decode_access_token(token)
-        username: str = payload.get("sub")
-        if username is None:
+        username: str = payload["username"]# 'sub' is the standard claim for subject/username
+        
+        if not username:
+            logs.define_logger(logging.WARNING, None, log_name, message="WebSocket auth failed: Token payload is missing the 'sub' (username) claim.")
             return None
-        token_data = TokenData(username=username)
+            
     except JWTError:
-        logs.define_logger(logging.WARNING, None, log_name, message="WebSocket auth failed: Could not validate token.")
+        logs.define_logger(logging.WARNING, None, log_name, message="WebSocket auth failed: Could not validate token. It may be invalid or expired.")
         return None
 
-    user_dict = auth_repo.get_user_by_username(username=token_data.username)
+    user_dict = auth_repo.get_user_by_username(username=username)
+    
     if user_dict is None:
-        logs.define_logger(logging.WARNING, None, log_name, message=f"WebSocket auth failed: User '{username}' not found.")
+        logs.define_logger(logging.WARNING, None, log_name, message=f"WebSocket auth failed: User '{username}' from a valid token was not found in the database.")
         return None
         
-    # Use model_validate to correctly handle field aliasing (e.g., _id -> user_id)
-    # and type conversion (ObjectId -> str).
+    # Let Pydantic handle validation and conversion (e.g., ObjectId to string for user_id)
     return User.model_validate(user_dict)
+
 # --- UPDATED: Dependency function to use the new scheme ---
 def get_current_active_user(
     # Use the new bearer_scheme. It returns a credentials object.
@@ -122,8 +125,6 @@ def get_current_active_user(
     if user_dict is None:
         raise credentials_exception
     
-    # Convert _id to str for the Pydantic model
-    if "_id" in user_dict:
-        user_dict["_id"] = str(user_dict["_id"])
-        
+    # Let Pydantic handle all validation, including aliasing _id -> user_id
+    # and converting ObjectId -> str. This makes it consistent with get_current_user_from_token.
     return User.model_validate(user_dict)

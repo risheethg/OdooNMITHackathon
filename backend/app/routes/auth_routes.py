@@ -26,9 +26,7 @@ async def register_user(
     """
     user_dict = service.register_user(user_data)
     
-    # Convert DB data to the Pydantic model for the response
-    if "_id" in user_dict:
-        user_dict["_id"] = str(user_dict["_id"])
+    # Pydantic's model_validate will handle the _id -> user_id mapping and type conversion
     user_response_data = User.model_validate(user_dict)
     
     return ResponseModel(
@@ -90,4 +88,3 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
         status_code=status.HTTP_200_OK,
         data=current_user
     )
-
