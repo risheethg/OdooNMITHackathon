@@ -1,139 +1,81 @@
-import logging
-import inspect
-from typing import List
-from fastapi import APIRouter, Depends, Query, HTTPException, Body
-from starlette.responses import JSONResponse
-from starlette import status
+import asyncio
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, Query
+from typing import List, Dict
+from bson import ObjectId
 
-# Your project's specific imports
-from app.core.logger import logs
-from app.services import chat_service, auth_service
 from app.models.auth_model import User
-from app.models.chat_model import ChatMessage, ChatMessageCreate, ChatMessageUpdate
-from app.utils.responses import response
-from app.utils.websocket_manager import manager # Keep for broadcasting
+from app.services.auth_service import get_current_user_from_token, auth_repo
+from app.services.project_service import get_project_by_id
 
-router = APIRouter(prefix="/projects/{project_id}/chat", tags=["Chat"])
+router = APIRouter(tags=["Chat"])
 
-# --- NEW ENDPOINT ADDED HERE ---
-@router.post("/")
-async def send_new_chat_message(
-    project_id: str,
-    message_data: ChatMessageCreate,
-    current_user: User = Depends(auth_service.get_current_active_user)
-):
-    """
-    Send a new chat message to a project.
-    This is a standard RESTful endpoint for sending messages.
-    """
-    log_name = inspect.stack()[0]
-    try:
-        logs.define_logger(logging.INFO, None, log_name, message=f"User '{current_user.username}' attempting to POST message to project '{project_id}'.")
-        
-        # Call the existing service function to create the message
-        new_message = await chat_service.create_chat_message(
-            project_id=project_id,
-            user_id=current_user.user_id,
-            username=current_user.username,
-            data=message_data
-        )
+class ConnectionManager:
+    """Manages active WebSocket connections for project-specific chat rooms."""
+    def __init__(self):
+        # Structure: { "project_id": { "websocket_object": "username" } }
+        self.active_connections: Dict[str, Dict[WebSocket, str]] = {}
 
-        # Broadcast the new message to any connected WebSocket clients
-        broadcast_payload = {"event": "new_message", "data": new_message.model_dump(mode="json")}
-        await manager.broadcast(project_id, broadcast_payload)
-        logs.define_logger(logging.INFO, None, log_name, message="Message broadcasted to WebSocket clients.")
+    async def connect(self, websocket: WebSocket, project_id: str, user: User):
+        """Accepts a new WebSocket connection and adds it to the project room."""
+        await websocket.accept()
+        if project_id not in self.active_connections:
+            self.active_connections[project_id] = {}
+        self.active_connections[project_id][websocket] = user.username
+        # Announce user join
+        await self.broadcast(f"User {user.username} has joined the chat.", project_id, is_system_message=True)
 
-        return JSONResponse(
-            status_code=status.HTTP_201_CREATED,
-            content=response.success(data=new_message.model_dump(mode="json"), message="Message sent successfully.")
-        )
-    except PermissionError as e:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content=response.failure(message=str(e))
-        )
-    except Exception as e:
-        logs.define_logger(logging.CRITICAL, None, log_name, message=f"An unexpected error occurred while sending a message to project '{project_id}': {e}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=response.failure(message="An unexpected error occurred.")
-        )
+    def disconnect(self, websocket: WebSocket, project_id: str, username: str):
+        """Removes a WebSocket connection from a project room."""
+        if project_id in self.active_connections:
+            if websocket in self.active_connections[project_id]:
+                del self.active_connections[project_id][websocket]
+                # If the room is empty, clean it up
+                if not self.active_connections[project_id]:
+                    del self.active_connections[project_id]
 
-
-@router.get("/")
-async def get_project_chat_history(
-    project_id: str,
-    current_user: User = Depends(auth_service.get_current_active_user),
-    page: int = Query(1, ge=1, description="Page number"),
-    limit: int = Query(50, ge=1, le=100, description="Messages per page")
-):
-    """
-    Retrieve the chat history for a specific project.
-    """
-    # ... existing code for getting history ...
-    log_name = inspect.stack()[0]
-    try:
-        history = chat_service.get_chat_history(project_id, current_user.user_id, page, limit)
-        history_data = [msg.model_dump(mode="json") for msg in history]
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=response.success(data=history_data, message="Chat history retrieved successfully.")
-        )
-    except PermissionError as e:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content=response.failure(message=str(e))
-        )
-    except Exception as e:
-        logs.define_logger(logging.CRITICAL, None, log_name, message=f"An unexpected error occurred while fetching chat history for project '{project_id}': {e}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=response.failure(message="An unexpected error occurred.")
-        )
-
-
-@router.put("/{message_id}")
-async def edit_existing_chat_message(
-    project_id: str,
-    message_id: str,
-    update_data: ChatMessageUpdate,
-    current_user: User = Depends(auth_service.get_current_active_user)
-):
-    """
-    Edit an existing chat message.
-    """
-    # ... existing code for editing a message ...
-    log_name = inspect.stack()[0]
-    try:
-        updated_message = chat_service.edit_chat_message(message_id, current_user.user_id, update_data)
-        if not updated_message:
-            return JSONResponse(
-                status_code=status.HTTP_404_NOT_FOUND,
-                content=response.failure(message="Message not found or no changes made.")
+    async def broadcast(self, message: str, project_id: str, is_system_message: bool = False):
+        """Broadcasts a message to all clients in a specific project room."""
+        if project_id in self.active_connections:
+            # Use asyncio.gather for concurrent sending
+            await asyncio.gather(
+                *[
+                    ws.send_json({"message": message, "is_system": is_system_message})
+                    for ws in self.active_connections[project_id]
+                ]
             )
 
-        # Broadcast the edit event to WebSocket clients
-        broadcast_payload = {"event": "edit_message", "data": updated_message.model_dump(mode="json")}
-        await manager.broadcast(project_id, broadcast_payload)
-        logs.define_logger(logging.INFO, None, log_name, message="Edit event broadcasted to WebSocket clients.")
+    async def broadcast_user_message(self, message: str, project_id: str, username: str):
+        """Broadcasts a message from a specific user."""
+        if project_id in self.active_connections:
+            await asyncio.gather(
+                *[
+                    ws.send_json({"message": message, "username": username, "is_system": False})
+                    for ws in self.active_connections[project_id]
+                ]
+            )
 
-        return JSONResponse(
-            status_code=status.HTTP_200_OK,
-            content=response.success(data=updated_message.model_dump(mode="json"), message="Message updated successfully.")
-        )
-    except PermissionError as e:
-        return JSONResponse(
-            status_code=status.HTTP_403_FORBIDDEN,
-            content=response.failure(message=str(e))
-        )
-    except ValueError as e:
-        return JSONResponse(
-            status_code=status.HTTP_404_NOT_FOUND,
-            content=response.failure(message=str(e))
-        )
-    except Exception as e:
-        logs.define_logger(logging.CRITICAL, None, log_name, message=f"An unexpected error occurred while editing message '{message_id}': {e}")
-        return JSONResponse(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            content=response.failure(message="An unexpected error occurred.")
-        )
+manager = ConnectionManager()
+
+@router.websocket("/ws/chat/{project_id}")
+async def websocket_endpoint(websocket: WebSocket, project_id: str, token: str = Query(...)):
+    """
+    WebSocket endpoint for real-time project chat.
+    Authenticates user via token and checks for project membership.
+    """
+    user = get_current_user_from_token(token)
+    project = get_project_by_id(project_id)
+
+    if not user or not project or ObjectId(user.user_id) not in project.members:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
+
+    await manager.connect(websocket, project_id, user)
+    username = user.username
+    
+    try:
+        while True:
+            data = await websocket.receive_text()
+            await manager.broadcast_user_message(data, project_id, username)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket, project_id, username)
+        await manager.broadcast(f"User {username} has left the chat.", project_id, is_system_message=True)
