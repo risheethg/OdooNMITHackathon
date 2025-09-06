@@ -1,8 +1,9 @@
 from app.repos.project_repo import ProjectRepo
 from typing import Dict, Any, Optional
-from app.models.project_model import Project, ProjectCreate, ProjectUpdate, MemberUpdate
+from app.models.project_model import Project, ProjectCreate, ProjectUpdate
+from app.models.member_model import MemberUpdate
 from app.core.logger import logs, logging, inspect
-from app.repos.project_repo import project_repo
+from app.repos.project_repo import ProjectRepo
 
 class ProjectService:
     """
@@ -16,7 +17,7 @@ class ProjectService:
             message=f"Attempting to add user '{user_id}' to project '{project_id}'."
         )
         
-        existing_project = project_repo.get_by_id(project_id)
+        existing_project = ProjectRepo.get_by_id(project_id)
         if not existing_project:
             logs.define_logger(level=logging.WARNING, loggName=inspect.stack()[0], message=f"Add member failed: Project with ID '{project_id}' not found.")
             raise ValueError(f"Project with ID '{project_id}' not found.")
@@ -26,7 +27,7 @@ class ProjectService:
             return Project(**existing_project)
         
         try:
-            updated_doc = project_repo.add_member(project_id, user_id)
+            updated_doc = ProjectRepo.add_member(project_id, user_id)
             if not updated_doc:
                 # This case indicates the project was not found by the repo method,
                 # but we already checked above. It's a defensive check.
@@ -47,7 +48,7 @@ class ProjectService:
             message=f"Attempting to remove user '{user_id}' from project '{project_id}'."
         )
 
-        existing_project = project_repo.get_by_id(project_id)
+        existing_project = ProjectRepo.get_by_id(project_id)
         if not existing_project:
             logs.define_logger(level=logging.WARNING, loggName=inspect.stack()[0], message=f"Remove member failed: Project with ID '{project_id}' not found.")
             raise ValueError(f"Project with ID '{project_id}' not found.")
@@ -57,7 +58,7 @@ class ProjectService:
             return Project(**existing_project)
         
         try:
-            updated_doc = project_repo.remove_member(project_id, user_id)
+            updated_doc = ProjectRepo.remove_member(project_id, user_id)
             if not updated_doc:
                 logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"Failed to remove member, could not retrieve project after update for '{project_id}'.")
                 raise Exception("Failed to remove member.")
