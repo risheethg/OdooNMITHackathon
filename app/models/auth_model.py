@@ -12,7 +12,7 @@ class User(UserBase):
     """
     User model for responses. Does not include the password.
     """
-    id: str = Field(..., alias="_id")
+    user_id: str = Field(..., alias="_id")
 
     class Config:
         # Allows Pydantic to populate the 'id' field from the '_id' key
