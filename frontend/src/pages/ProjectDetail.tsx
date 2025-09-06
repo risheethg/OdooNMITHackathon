@@ -1,4 +1,4 @@
-import { useState, useMemo, FormEvent } from "react";
+import { useState, useMemo, FormEvent, useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import axios from "axios";
@@ -111,11 +111,12 @@ interface TaskUpdateData {
     status?: TaskStatus;
 }
 
-// --- MOCK DATA (Discussion Panel) ---
-const mockDiscussion = [
-  { id: 1, user: { name: "Alice", initials: "A" }, message: "Finished wireframes, what do you think?", timestamp: "2 hours ago", replies: [{ id: 2, user: { name: "Bob", initials: "B" }, message: "Looks great!", timestamp: "1 hour ago" }] },
-];
-
+interface ChatMessage {
+    message: string;
+    username?: string; // Present for user messages
+    is_system: boolean; // True for join/leave announcements
+    timestamp: string;
+}
 
 // --- API HELPER FUNCTIONS ---
 const getAuthHeader = () => {
@@ -178,12 +179,20 @@ export default function ProjectDetail() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   
+  // State for modals and dialogs
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
   const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
-  // --- DATA FETCHING ---
+  // State for chat
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const socketRef = useRef<WebSocket | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
+
+
+  // --- DATA FETCHING & REAL-TIME CONNECTION ---
   const { data: project, isLoading: isProjectLoading, isError: isProjectError, error: projectError } = useQuery<Project, Error>({
       queryKey: ['project', projectId],
       queryFn: () => fetchProjectById(projectId!),
@@ -200,6 +209,40 @@ export default function ProjectDetail() {
       queryKey: ['allUsers'],
       queryFn: fetchAllUsers
   });
+
+  // WebSocket connection effect
+  useEffect(() => {
+    if (!projectId) return;
+
+    const token = localStorage.getItem("authToken");
+    if (!token) {
+        toast.error("Authentication required for chat.");
+        return;
+    }
+
+    const ws = new WebSocket(`ws://127.0.0.1:8000/ws/chat/${projectId}?token=${encodeURIComponent(token)}`);
+    socketRef.current = ws;
+
+    ws.onopen = () => {
+        console.log("WebSocket connected");
+    };
+
+    ws.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        setChatMessages(prev => [...prev, { ...data, timestamp: new Date().toLocaleTimeString() }]);
+    };
+
+    ws.onclose = () => {
+        console.log("WebSocket disconnected");
+    };
+
+    ws.onerror = (error) => {
+        console.error("WebSocket error:", error);
+        toast.error("Chat connection error.");
+    };
+
+    return () => ws.close();
+  }, [projectId]);
 
   // --- DATA MUTATIONS ---
   const addMemberMutation = useMutation({
@@ -280,6 +323,15 @@ export default function ProjectDetail() {
       }
   };
 
+  const handleSendMessage = (e: FormEvent) => {
+      e.preventDefault();
+      if (chatInput.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
+          // The backend expects a JSON string, not plain text.
+          socketRef.current.send(JSON.stringify({ message: chatInput }));
+          setChatInput("");
+      }
+  };
+
   // --- DERIVED STATE & UI HELPERS ---
   const { projectMembers, availableUsersToAdd } = useMemo(() => {
     if (!project || !allUsers) return { projectMembers: [], availableUsersToAdd: [] };
@@ -302,6 +354,13 @@ export default function ProjectDetail() {
     });
     return grouped;
   }, [tasks]);
+
+  // Auto-scroll chat to the bottom
+  useEffect(() => {
+      if (chatContainerRef.current) {
+          chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+  }, [chatMessages]);
 
   // --- RENDER LOGIC ---
   if (isProjectLoading) {
@@ -440,10 +499,37 @@ export default function ProjectDetail() {
             </Card>
 
             {/* Discussion Panel (Mock Data) */}
-            <div className="space-y-4">
-                <div className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /><h3 className="font-semibold text-foreground">Project Discussion</h3></div>
-                <Card className="card-gradient border-0 shadow-elegant"><CardContent className="p-4 max-h-96 overflow-y-auto">{/* Mock UI */} </CardContent></Card>
-                <div className="space-y-2">{/* Message Input */}</div>
+            <div className="flex flex-col h-[32rem]">
+                <div className="flex items-center gap-2 mb-4">
+                    <MessageSquare className="w-5 h-5 text-primary" />
+                    <h3 className="font-semibold text-foreground">Project Chat</h3>
+                </div>
+                <Card className="card-gradient border-0 shadow-elegant flex-grow flex flex-col">
+                    <CardContent ref={chatContainerRef} className="p-4 flex-grow overflow-y-auto space-y-4">
+                        {chatMessages.map((msg, index) => (
+                            <div key={index} className={`flex flex-col ${msg.is_system ? 'items-center' : 'items-start'}`}>
+                                {msg.is_system ? (
+                                    <Badge variant="secondary" className="text-xs">{msg.message}</Badge>
+                                ) : (
+                                    <div className="flex items-start gap-2.5">
+                                        <Avatar className="w-8 h-8"><AvatarFallback className="text-xs">{getInitials(msg.username)}</AvatarFallback></Avatar>
+                                        <div className="flex flex-col gap-1">
+                                            <div className="flex items-center space-x-2 rtl:space-x-reverse">
+                                                <span className="text-sm font-semibold text-foreground">{msg.username}</span>
+                                                <span className="text-xs font-normal text-muted-foreground">{msg.timestamp}</span>
+                                            </div>
+                                            <div className="leading-snug p-2.5 rounded-lg bg-muted/50 text-sm font-normal text-foreground">{msg.message}</div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </CardContent>
+                    <form onSubmit={handleSendMessage} className="p-4 border-t border-border/20 flex items-center gap-2">
+                        <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message..." className="flex-grow" autoComplete="off" />
+                        <Button type="submit" size="icon" className="primary-gradient"><Send className="h-4 w-4" /></Button>
+                    </form>
+                </Card>
             </div>
         </div>
       </div>
@@ -472,4 +558,3 @@ export default function ProjectDetail() {
     </div>
   );
 }
-
