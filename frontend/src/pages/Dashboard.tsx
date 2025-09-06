@@ -9,8 +9,6 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Progress } from "@/components/ui/progress";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -44,63 +42,48 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 
 // --- TYPE DEFINITIONS ---
-// These should match your Pydantic models for type safety
-interface TeamMember {
-  user_id: string;
-  username: string;
-  role: string;
+// CORRECTED: This interface now EXACTLY matches the Pydantic `Project` model from the backend.
+interface Project {
+  _id: string; // The alias for project_id
+  project_name: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  due_date?: string;
+  created_by: string;
+  members: string[]; // This is now a list of strings (user IDs)
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
 }
 
-interface Project {
-  _id: string;
-  name: string;
-  description: string;
-  status: 'active' | 'completed' | 'on_hold';
-  priority: 'low' | 'medium' | 'high';
-  owner_id: string;
-  team_members: TeamMember[];
-  due_date: string; // Assuming ISO string format
-  // Add other fields from your model as needed
-  progress?: number; // Optional, can be calculated on frontend or backend
-}
 
 // --- API HELPER FUNCTIONS ---
 
-// Helper to get the auth token safely
 const getAuthHeader = () => {
     const token = localStorage.getItem("authToken");
     if (!token) throw new Error("Authentication token not found.");
     return { Authorization: `Bearer ${token}` };
 };
 
-// Function to fetch all projects for the current user
 const fetchUserProjects = async (): Promise<Project[]> => {
-    const response = await axios.get('http://127.0.0.1:8000/projects/', {
-        headers: getAuthHeader()
-    });
-    // The actual projects array is nested in response.data.data.projects
+    const response = await axios.get('http://127.0.0.1:8000/projects/', { headers: getAuthHeader() });
     return response.data.data.projects;
 };
 
-// Function to create a new project
-const createProject = async (projectData: { name: string; description: string; due_date: string; priority: string; }) => {
-    const response = await axios.post('http://127.0.0.1:8000/projects/', projectData, {
-        headers: getAuthHeader()
-    });
+const createProject = async (projectData: { project_name: string; description: string; priority: string; due_date: string; }) => {
+    const response = await axios.post('http://127.0.0.1:8000/projects/', projectData, { headers: getAuthHeader() });
     return response.data;
 };
 
-// Function to delete a project
 const deleteProject = async (projectId: string) => {
-    const response = await axios.delete(`http://127.0.0.1:8000/projects/${projectId}`, {
-        headers: getAuthHeader()
-    });
+    const response = await axios.delete(`http://127.0.0.1:8000/projects/${projectId}`, { headers: getAuthHeader() });
     return response.data;
 };
+
 
 // --- HELPER & STYLING FUNCTIONS ---
 
-const getPriorityColor = (priority: string) => {
+const getPriorityColor = (priority?: string) => {
     switch (priority) {
         case "high": return "bg-destructive/80 text-destructive-foreground";
         case "medium": return "bg-yellow-500/80 text-white";
@@ -108,8 +91,6 @@ const getPriorityColor = (priority: string) => {
         default: return "bg-muted text-muted-foreground";
     }
 };
-
-const getInitials = (name: string = "") => name.charAt(0).toUpperCase() || 'U';
 
 
 // --- MAIN DASHBOARD COMPONENT ---
@@ -122,40 +103,33 @@ export default function Dashboard() {
     const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
     const [projectToDelete, setProjectToDelete] = useState<string | null>(null);
 
-    // --- DATA FETCHING (using react-query) ---
     const { data: projects, isLoading, isError, error } = useQuery<Project[], Error>({
         queryKey: ['userProjects'],
         queryFn: fetchUserProjects,
     });
-
-    // --- DATA MUTATIONS (using react-query) ---
     
-    // Mutation for creating a project
     const createProjectMutation = useMutation({
         mutationFn: createProject,
         onSuccess: (data) => {
             toast.success(data.message || "Project created successfully!");
-            queryClient.invalidateQueries({ queryKey: ['userProjects'] }); // Refetch projects
-            setCreateModalOpen(false); // Close the modal
+            queryClient.invalidateQueries({ queryKey: ['userProjects'] });
+            setCreateModalOpen(false);
         },
         onError: (error: any) => {
-            const errorMessage = error.response?.data?.detail || "Failed to create project.";
-            toast.error(errorMessage);
+            toast.error(error.response?.data?.detail || "Failed to create project.");
         }
     });
 
-    // Mutation for deleting a project
     const deleteProjectMutation = useMutation({
         mutationFn: deleteProject,
         onSuccess: (data) => {
             toast.success(data.message || "Project deleted successfully!");
-            queryClient.invalidateQueries({ queryKey: ['userProjects'] }); // Refetch
+            queryClient.invalidateQueries({ queryKey: ['userProjects'] });
             setDeleteDialogOpen(false);
             setProjectToDelete(null);
         },
         onError: (error: any) => {
-            const errorMessage = error.response?.data?.detail || "Failed to delete project.";
-            toast.error(errorMessage);
+            toast.error(error.response?.data?.detail || "Failed to delete project.");
         }
     });
 
@@ -163,7 +137,7 @@ export default function Dashboard() {
         e.preventDefault();
         const formData = new FormData(e.currentTarget);
         const newProject = {
-            name: formData.get('name') as string,
+            project_name: formData.get('name') as string,
             description: formData.get('description') as string,
             due_date: new Date(formData.get('due_date') as string).toISOString(),
             priority: formData.get('priority') as string,
@@ -181,8 +155,6 @@ export default function Dashboard() {
             deleteProjectMutation.mutate(projectToDelete);
         }
     };
-
-    // --- RENDER LOGIC ---
 
     const renderProjectGrid = () => {
         if (isLoading) {
@@ -215,21 +187,17 @@ export default function Dashboard() {
         return (
             <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
                 {projects.map((project) => (
-                    <Card
-                        key={project._id}
-                        className="card-gradient border-0 shadow-elegant hover-lift transition-transform duration-300"
-                    >
+                    <Card key={project._id} className="card-gradient border-0 shadow-elegant hover-lift transition-transform duration-300">
                         <CardHeader className="pb-4 cursor-pointer" onClick={() => navigate(`/projects/${project._id}`)}>
                             <div className="flex items-start justify-between">
                                 <div className="space-y-2">
-                                    <CardTitle className="text-lg font-semibold text-foreground line-clamp-1">{project.name}</CardTitle>
-                                    <Badge className={`text-xs capitalize ${getPriorityColor(project.priority)}`}>{project.priority}</Badge>
+                                    {/* CORRECTED: Using `project_name` */}
+                                    <CardTitle className="text-lg font-semibold text-foreground line-clamp-1">{project.project_name}</CardTitle>
+                                    <Badge className={`text-xs capitalize ${getPriorityColor(project.priority)}`}>{project.priority || 'N/A'}</Badge>
                                 </div>
                                 <DropdownMenu>
                                     <DropdownMenuTrigger asChild>
-                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}>
-                                            <MoreVertical className="w-4 h-4" />
-                                        </Button>
+                                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={(e) => e.stopPropagation()}><MoreVertical className="w-4 h-4" /></Button>
                                     </DropdownMenuTrigger>
                                     <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
                                         <DropdownMenuItem><Edit className="mr-2 h-4 w-4" />Edit Project</DropdownMenuItem>
@@ -243,24 +211,19 @@ export default function Dashboard() {
                         </CardHeader>
                         <CardContent className="space-y-4 cursor-pointer" onClick={() => navigate(`/projects/${project._id}`)}>
                             <p className="text-sm text-muted-foreground line-clamp-2 h-10">{project.description}</p>
-                            <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                                <div className="flex items-center gap-1">
-                                    <Calendar className="w-4 h-4" />
-                                    <span>Due {new Date(project.due_date).toLocaleDateString()}</span>
+                            {project.due_date && (
+                                <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                                    <div className="flex items-center gap-1">
+                                        <Calendar className="w-4 h-4" />
+                                        <span>Due {new Date(project.due_date).toLocaleDateString()}</span>
+                                    </div>
                                 </div>
-                            </div>
+                            )}
                             <div className="flex items-center justify-between">
                                 <div className="flex items-center gap-1">
                                     <Users className="w-4 h-4 text-muted-foreground" />
-                                    <span className="text-sm text-muted-foreground">Team</span>
-                                </div>
-                                <div className="flex -space-x-2">
-                                    {project.team_members.slice(0, 3).map((member) => (
-                                        <Avatar key={member.user_id} className="w-8 h-8 border-2 border-background">
-                                            <AvatarImage src="" alt={member.username} />
-                                            <AvatarFallback className="bg-primary text-primary-foreground text-xs">{getInitials(member.username)}</AvatarFallback>
-                                        </Avatar>
-                                    ))}
+                                    {/* CORRECTED: Displaying member count as we only have IDs */}
+                                    <span className="text-sm text-muted-foreground">{project.members.length} Member(s)</span>
                                 </div>
                             </div>
                         </CardContent>
@@ -279,10 +242,7 @@ export default function Dashboard() {
                 </div>
                  <Dialog open={isCreateModalOpen} onOpenChange={setCreateModalOpen}>
                     <DialogTrigger asChild>
-                        <Button className="primary-gradient text-primary-foreground shadow-md hover:opacity-90">
-                            <Plus className="w-4 h-4 mr-2" />
-                            New Project
-                        </Button>
+                        <Button className="primary-gradient text-primary-foreground shadow-md hover:opacity-90"><Plus className="w-4 h-4 mr-2" />New Project</Button>
                     </DialogTrigger>
                     <DialogContent className="sm:max-w-[425px]">
                         <DialogHeader>
@@ -313,16 +273,13 @@ export default function Dashboard() {
                                 </div>
                             </div>
                             <DialogFooter>
-                                <Button type="submit" disabled={createProjectMutation.isPending}>
-                                    {createProjectMutation.isPending ? 'Creating...' : 'Create Project'}
-                                </Button>
+                                <Button type="submit" disabled={createProjectMutation.isPending}>{createProjectMutation.isPending ? 'Creating...' : 'Create Project'}</Button>
                             </DialogFooter>
                         </form>
                     </DialogContent>
                 </Dialog>
             </div>
-
-            {/* Placeholder Stats Cards - Can be wired up later */}
+            
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
                  <Card className="card-gradient border-0 shadow-elegant hover-lift">
                      <CardHeader className="pb-2"><CardTitle className="text-sm font-medium text-muted-foreground">Total Projects</CardTitle></CardHeader>
@@ -334,20 +291,16 @@ export default function Dashboard() {
                  </Card>
             </div>
             
-            {/* Dynamic Projects Grid */}
             <div>
                 <h2 className="text-xl font-semibold text-foreground mb-4">Your Projects</h2>
                 {renderProjectGrid()}
             </div>
 
-            {/* Delete Confirmation Dialog */}
             <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                 <AlertDialogContent>
                     <AlertDialogHeader>
                         <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                        <AlertDialogDescription>
-                            This action cannot be undone. This will permanently delete the project and all of its related data.
-                        </AlertDialogDescription>
+                        <AlertDialogDescription>This action cannot be undone. This will permanently delete the project.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
@@ -357,7 +310,7 @@ export default function Dashboard() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
-
         </div>
     );
 }
+
