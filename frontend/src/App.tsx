@@ -10,6 +10,7 @@ import { AppLayout } from "./components/layout/AppLayout";
 import Dashboard from "./pages/Dashboard";
 import ProjectDetail from "./pages/ProjectDetail";
 import NotFound from "./pages/NotFound";
+import AnalyticsPage from "./pages/Analytics";
 import LoginPage from "./pages/Login";
 
 const queryClient = new QueryClient();
@@ -47,6 +48,7 @@ function App() {
               // If authenticated, all routes are rendered within the protected layout
               <Route path="/*" element={<AppLayout onLogout={handleLogout} />}>
                 <Route path="dashboard" element={<Dashboard />} />
+                <Route path="analytics" element={<AnalyticsPage />} />
                 <Route path="projects/:id" element={<ProjectDetail />} />
                 {/* Default route for authenticated users */}
                 <Route index element={<Navigate to="/dashboard" replace />} />

@@ -7,6 +7,7 @@ import {
   Settings,
   Plus,
   Bell,
+  BarChartHorizontal,
   ChevronLeft,
   ChevronRight
 } from "lucide-react";
@@ -26,6 +27,7 @@ import { Button } from "@/components/ui/button";
 
 const navigationItems = [
   { title: "Dashboard", url: "/", icon: LayoutDashboard },
+  { title: "Analytics", url: "/analytics", icon: BarChartHorizontal },
   { title: "Projects", url: "/projects", icon: FolderOpen },
   { title: "Team", url: "/team", icon: Users },
   { title: "Settings", url: "/settings", icon: Settings },
