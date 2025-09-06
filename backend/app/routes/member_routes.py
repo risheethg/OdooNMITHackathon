@@ -18,7 +18,7 @@ def get_project_service() -> ProjectService:
 
 router = APIRouter()
 
-@router.post("/projects/{project_id}/members", response_model=Project, status_code=status.HTTP_200_OK)
+@router.post("/projects/{project_id}/member", response_model=Project, status_code=status.HTTP_200_OK)
 def add_team_member_route(project_id: str, member_request: MemberAdditionRequest, service: ProjectService = Depends(get_project_service)):
     """
     Adds a team member to a project.
@@ -29,7 +29,7 @@ def add_team_member_route(project_id: str, member_request: MemberAdditionRequest
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
     return updated_project
 
-@router.delete("/projects/{project_id}/members", response_model=Project, status_code=status.HTTP_200_OK)
+@router.delete("/projects/{project_id}/member", response_model=Project, status_code=status.HTTP_200_OK)
 def remove_team_member_route(project_id: str, member_request: MemberRemovalRequest, service: ProjectService = Depends(get_project_service)):
     """
     Removes a team member from a project.

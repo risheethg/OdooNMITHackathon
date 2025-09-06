@@ -1,19 +1,29 @@
-import { useState } from "react";
+import { useState, useMemo, FormEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import axios from "axios";
+import { toast } from "sonner";
+
 import { 
   ArrowLeft, 
   Plus, 
   MoreVertical, 
   Calendar, 
-  Clock,
   MessageSquare,
   Send,
-  Paperclip
+  Paperclip,
+  AlertTriangle,
+  Trash2,
+  Edit,
+  UserPlus,
+  X
 } from "lucide-react";
+
+// UI Components from shadcn/ui
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import {
@@ -21,6 +31,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
+  DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
 import {
   Dialog,
@@ -31,6 +42,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -39,154 +60,325 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Skeleton } from "@/components/ui/skeleton";
 
-const mockTasks = [
-  {
-    id: 1,
-    title: "Design new landing page",
-    description: "Create wireframes and mockups for the new homepage",
-    assignee: { name: "Alice Johnson", initials: "AJ" },
-    dueDate: "2024-01-12",
-    status: "todo",
-    priority: "high"
-  },
-  {
-    id: 2,
-    title: "Implement user authentication",
-    description: "Set up login/signup functionality with proper security",
-    assignee: { name: "Bob Smith", initials: "BS" },
-    dueDate: "2024-01-15",
-    status: "in-progress",
-    priority: "high"
-  },
-  {
-    id: 3,
-    title: "Write API documentation",
-    description: "Document all endpoints with examples",
-    assignee: { name: "Carol Davis", initials: "CD" },
-    dueDate: "2024-01-18",
-    status: "done",
-    priority: "medium"
-  }
-];
+// --- TYPE DEFINITIONS ---
+interface User {
+    _id: string;
+    username: string;
+    email: string;
+}
 
+interface Project {
+  _id: string;
+  project_name: string;
+  description?: string;
+  priority?: 'low' | 'medium' | 'high';
+  due_date?: string;
+  created_by: string;
+  members: string[]; // Still an array of user IDs
+  is_deleted: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+type TaskStatus = "To Do" | "In Progress" | "Done";
+
+// FIXED: Interface now matches the backend Pydantic Task model exactly
+interface Task {
+    _id: string; // Alias for task_id
+    title: string;
+    description?: string;
+    assignee: string; // User ID
+    due_date: string;
+    status: TaskStatus;
+    project_id: string;
+    created_by: string;
+    is_deleted: boolean;
+    created_at: string;
+    updated_at: string;
+}
+
+interface TaskCreateData {
+    title: string;
+    description?: string;
+    assignee: string;
+    due_date: string;
+    status: TaskStatus;
+}
+
+interface TaskUpdateData {
+    status?: TaskStatus;
+}
+
+// --- MOCK DATA (Discussion Panel) ---
 const mockDiscussion = [
-  {
-    id: 1,
-    user: { name: "Alice Johnson", initials: "AJ" },
-    message: "Just finished the initial wireframes. What do you think about the new layout?",
-    timestamp: "2 hours ago",
-    replies: [
-      {
-        id: 2,
-        user: { name: "Bob Smith", initials: "BS" },
-        message: "Looks great! I especially like the simplified navigation.",
-        timestamp: "1 hour ago"
-      }
-    ]
-  },
-  {
-    id: 3,
-    user: { name: "Carol Davis", initials: "CD" },
-    message: "The API documentation is now complete. All endpoints are documented with examples.",
-    timestamp: "4 hours ago",
-    replies: []
-  }
+  { id: 1, user: { name: "Alice", initials: "A" }, message: "Finished wireframes, what do you think?", timestamp: "2 hours ago", replies: [{ id: 2, user: { name: "Bob", initials: "B" }, message: "Looks great!", timestamp: "1 hour ago" }] },
 ];
 
+
+// --- API HELPER FUNCTIONS ---
+const getAuthHeader = () => {
+    const token = localStorage.getItem("authToken");
+    if (!token) throw new Error("Authentication token not found.");
+    return { Authorization: `Bearer ${token}` };
+};
+
+const fetchProjectById = async (projectId: string): Promise<Project> => {
+    const response = await axios.get(`http://127.0.0.1:8000/projects/${projectId}`, { headers: getAuthHeader() });
+    return response.data.data;
+};
+
+const fetchTasksForProject = async (projectId: string): Promise<Task[]> => {
+    const response = await axios.get(`http://127.0.0.1:8000/tasks/project/${projectId}`, { headers: getAuthHeader() });
+    return response.data.data;
+};
+
+const fetchAllUsers = async (): Promise<User[]> => {
+    const response = await axios.get('http://127.0.0.1:8000/auth/users/all', { headers: getAuthHeader() });
+    return response.data.data;
+}
+
+const addMemberToProject = async ({ projectId, userId }: { projectId: string; userId: string }) => {
+    const response = await axios.post(`http://127.0.0.1:8000/projects/${projectId}/members`, { user_id: userId }, { headers: getAuthHeader() });
+    return response.data;
+}
+
+const removeMemberFromProject = async ({ projectId, userId }: { projectId: string; userId: string }) => {
+    const response = await axios.delete(`http://127.0.0.1:8000/projects/${projectId}/members/${userId}`, { headers: getAuthHeader() });
+    return response.data;
+}
+
+
+const createTask = async ({ projectId, taskData }: { projectId: string, taskData: TaskCreateData }) => {
+    const response = await axios.post(`http://127.0.0.1:8000/tasks/?project_id=${projectId}`, taskData, { headers: getAuthHeader() });
+    return response.data;
+};
+
+const updateTask = async ({ taskId, updateData }: { taskId: string, updateData: TaskUpdateData }) => {
+    const response = await axios.put(`http://127.0.0.1:8000/tasks/${taskId}`, updateData, { headers: getAuthHeader() });
+    return response.data;
+};
+
+const deleteTask = async (taskId: string) => {
+    const response = await axios.delete(`http://127.0.0.1:8000/tasks/${taskId}`, { headers: getAuthHeader() });
+    return response.data;
+}
+
+const getInitials = (name: string = "") => name.substring(0, 2).toUpperCase();
+
+
+// --- MAIN COMPONENT ---
 export default function ProjectDetail() {
-  const { id } = useParams();
+  const { id: projectId } = useParams();
   const navigate = useNavigate();
-  const [newMessage, setNewMessage] = useState("");
+  const queryClient = useQueryClient();
+  
   const [isTaskDialogOpen, setIsTaskDialogOpen] = useState(false);
+  const [isAddMemberDialogOpen, setIsAddMemberDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "todo": return "bg-muted text-muted-foreground";
-      case "in-progress": return "bg-accent text-accent-foreground";
-      case "done": return "bg-success text-success-foreground";
-      default: return "bg-muted text-muted-foreground";
-    }
+  // --- DATA FETCHING ---
+  const { data: project, isLoading: isProjectLoading, isError: isProjectError, error: projectError } = useQuery<Project, Error>({
+      queryKey: ['project', projectId],
+      queryFn: () => fetchProjectById(projectId!),
+      enabled: !!projectId, 
+  });
+
+  const { data: tasks, isLoading: areTasksLoading } = useQuery<Task[], Error>({
+      queryKey: ['tasks', projectId],
+      queryFn: () => fetchTasksForProject(projectId!),
+      enabled: !!projectId,
+  });
+
+  const { data: allUsers, isLoading: areUsersLoading } = useQuery<User[], Error>({
+      queryKey: ['allUsers'],
+      queryFn: fetchAllUsers
+  });
+
+  // --- DATA MUTATIONS ---
+  const addMemberMutation = useMutation({
+      mutationFn: addMemberToProject,
+      onSuccess: () => {
+          toast.success("Member added to project!");
+          queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      },
+      onError: (error: any) => toast.error(error.response?.data?.detail || "Failed to add member."),
+  });
+
+  const removeMemberMutation = useMutation({
+      mutationFn: removeMemberFromProject,
+      onSuccess: () => {
+          toast.success("Member removed from project.");
+          queryClient.invalidateQueries({ queryKey: ['project', projectId] });
+      },
+      onError: (error: any) => toast.error(error.response?.data?.detail || "Failed to remove member."),
+  });
+
+  const createTaskMutation = useMutation({
+      mutationFn: createTask,
+      onSuccess: () => {
+          toast.success("Task created successfully!");
+          queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+          setIsTaskDialogOpen(false);
+      },
+      onError: (error: any) => toast.error(error.response?.data?.detail || "Failed to create task."),
+  });
+
+  const updateTaskMutation = useMutation({
+      mutationFn: updateTask,
+      onSuccess: () => {
+          toast.success("Task status updated!");
+          queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+      },
+      onError: (error: any) => toast.error(error.response?.data?.detail || "Failed to update task."),
+  });
+
+  const deleteTaskMutation = useMutation({
+      mutationFn: deleteTask,
+      onSuccess: () => {
+          toast.success("Task deleted.");
+          queryClient.invalidateQueries({ queryKey: ['tasks', projectId] });
+          setDeleteDialogOpen(false);
+          setTaskToDelete(null);
+      },
+      onError: (error: any) => toast.error(error.response?.data?.detail || "Failed to delete task."),
+  })
+
+  // --- EVENT HANDLERS ---
+  // FIXED: Implemented all event handlers
+  const handleCreateTaskSubmit = (e: FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      if (!projectId) return;
+      const formData = new FormData(e.currentTarget);
+      const taskData: TaskCreateData = {
+          title: formData.get('title') as string,
+          description: formData.get('description') as string,
+          assignee: formData.get('assignee') as string,
+          due_date: new Date(formData.get('dueDate') as string).toISOString(),
+          status: "To Do"
+      };
+      createTaskMutation.mutate({ projectId, taskData });
+  };
+  
+  const handleChangeStatus = (taskId: string, status: TaskStatus) => {
+      updateTaskMutation.mutate({ taskId, updateData: { status }});
   };
 
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case "high": return "bg-destructive text-destructive-foreground";
-      case "medium": return "bg-warning text-warning-foreground";
-      case "low": return "bg-secondary text-secondary-foreground";
-      default: return "bg-muted text-muted-foreground";
-    }
+  const handleDeleteClick = (task: Task) => {
+      setTaskToDelete(task);
+      setDeleteDialogOpen(true);
   };
 
-  const tasksByStatus = {
-    todo: mockTasks.filter(task => task.status === "todo"),
-    "in-progress": mockTasks.filter(task => task.status === "in-progress"),
-    done: mockTasks.filter(task => task.status === "done")
+  const confirmDelete = () => {
+      if (taskToDelete) {
+          deleteTaskMutation.mutate(taskToDelete._id);
+      }
   };
+
+  // --- DERIVED STATE & UI HELPERS ---
+  const { projectMembers, availableUsersToAdd } = useMemo(() => {
+    if (!project || !allUsers) return { projectMembers: [], availableUsersToAdd: [] };
+    const memberIds = new Set(project.members);
+    const projectMembers = allUsers.filter(user => memberIds.has(user._id));
+    const availableUsersToAdd = allUsers.filter(user => !memberIds.has(user._id));
+    return { projectMembers, availableUsersToAdd };
+  }, [project, allUsers]);
+
+  // FIXED: Implemented task grouping logic
+  const tasksByStatus = useMemo(() => {
+    const grouped: Record<TaskStatus, Task[]> = {
+      "To Do": [],
+      "In Progress": [],
+      "Done": [],
+    };
+    tasks?.forEach(task => {
+      if (grouped[task.status]) {
+        grouped[task.status].push(task);
+      }
+    });
+    return grouped;
+  }, [tasks]);
+
+  // --- RENDER LOGIC ---
+  if (isProjectLoading) {
+    return <div className="p-6"><Skeleton className="h-96 w-full" /></div>;
+  }
+  if (isProjectError) {
+    return (
+      <div className="text-center py-10">
+          <AlertTriangle className="mx-auto h-12 w-12 text-destructive" />
+          <h3 className="mt-2 text-lg font-medium text-destructive">Failed to load project</h3>
+          <p className="mt-1 text-sm text-muted-foreground">{projectError.message}</p>
+          <Button onClick={() => navigate("/dashboard")} className="mt-4">Go Back</Button>
+      </div>
+    );
+  }
+
+  const renderTaskColumn = (title: TaskStatus, tasksInColumn: Task[]) => (
+    <div className="space-y-4">
+        <div className="flex items-center justify-between"><h3 className="font-semibold text-foreground">{title}</h3><Badge variant="secondary">{tasksInColumn.length}</Badge></div>
+        <div className="space-y-3">
+            {areTasksLoading ? <Skeleton className="h-24 w-full" /> : tasksInColumn.map((task) => {
+                const assignee = projectMembers.find(m => m._id === task.assignee);
+                const assigneeName = assignee?.username || 'Unknown';
+              return (
+              <Card key={task._id} className={`card-gradient border-0 shadow-md hover-lift cursor-pointer ${task.status === 'Done' ? 'opacity-70' : ''}`}>
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <CardTitle className={`text-sm font-medium line-clamp-2 ${task.status === 'Done' ? 'line-through' : ''}`}>{task.title}</CardTitle>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-6 w-6 shrink-0"><MoreVertical className="w-3 h-3" /></Button></DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem disabled> <Edit className="mr-2 h-4 w-4" /> Edit Task</DropdownMenuItem><DropdownMenuSeparator/>
+                        {task.status !== 'To Do' && <DropdownMenuItem onClick={() => handleChangeStatus(task._id, 'To Do')}>Move to To Do</DropdownMenuItem>}
+                        {task.status !== 'In Progress' && <DropdownMenuItem onClick={() => handleChangeStatus(task._id, 'In Progress')}>Move to In Progress</DropdownMenuItem>}
+                        {task.status !== 'Done' && <DropdownMenuItem onClick={() => handleChangeStatus(task._id, 'Done')}>Move to Done</DropdownMenuItem>}<DropdownMenuSeparator/>
+                        <DropdownMenuItem className="text-destructive focus:text-destructive focus:bg-destructive/10" onClick={() => handleDeleteClick(task)}><Trash2 className="mr-2 h-4 w-4" /> Delete Task</DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardHeader>
+                <CardContent className="pt-0 space-y-3">
+                  <p className="text-xs text-muted-foreground line-clamp-2">{task.description}</p>
+                   <div className="flex items-center gap-2"><Calendar className="w-3 h-3 text-muted-foreground" /><span className="text-xs text-muted-foreground">Due: {new Date(task.due_date).toLocaleDateString()}</span></div>
+                   <div className="flex items-center gap-2">
+                       <Avatar className="w-5 h-5"><AvatarFallback className="text-xs">{getInitials(assigneeName)}</AvatarFallback></Avatar>
+                       <span className="text-xs text-muted-foreground truncate" title={assigneeName}>Assigned to: {assigneeName}</span>
+                   </div>
+                </CardContent>
+              </Card>
+            )})}
+        </div>
+      </div>
+  );
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button 
-          variant="ghost" 
-          size="icon"
-          onClick={() => navigate("/dashboard")}
-        >
-          <ArrowLeft className="w-4 h-4" />
-        </Button>
-        <div className="flex-1">
-          <h1 className="text-3xl font-bold text-foreground">Website Redesign</h1>
-          <p className="text-muted-foreground mt-1">
-            Redesigning the company website with modern UI/UX
-          </p>
-        </div>
+        <Button variant="ghost" size="icon" onClick={() => navigate("/dashboard")}><ArrowLeft className="w-4 h-4" /></Button>
+        <div className="flex-1"><h1 className="text-3xl font-bold text-foreground">{project?.project_name}</h1><p className="text-muted-foreground mt-1">{project?.description}</p></div>
+        {/* Add Task Dialog Trigger */}
         <Dialog open={isTaskDialogOpen} onOpenChange={setIsTaskDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="primary-gradient text-primary-foreground shadow-md">
-              <Plus className="w-4 h-4 mr-2" />
-              Add Task
-            </Button>
-          </DialogTrigger>
+          <DialogTrigger asChild><Button className="primary-gradient text-primary-foreground shadow-md"><Plus className="w-4 h-4 mr-2" />Add Task</Button></DialogTrigger>
           <DialogContent className="sm:max-w-[425px]">
-            <DialogHeader>
-              <DialogTitle>Create New Task</DialogTitle>
-              <DialogDescription>
-                Add a new task to this project. Fill in the details below.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <div className="grid gap-2">
-                <Label htmlFor="title">Title</Label>
-                <Input id="title" placeholder="Enter task title..." />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea id="description" placeholder="Enter task description..." />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="assignee">Assignee</Label>
-                <Select>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select assignee" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="alice">Alice Johnson</SelectItem>
-                    <SelectItem value="bob">Bob Smith</SelectItem>
-                    <SelectItem value="carol">Carol Davis</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="dueDate">Due Date</Label>
-                <Input id="dueDate" type="date" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit" className="primary-gradient text-primary-foreground">
-                Create Task
-              </Button>
-            </DialogFooter>
+            <DialogHeader><DialogTitle>Create New Task</DialogTitle><DialogDescription>Add a new task to this project.</DialogDescription></DialogHeader>
+            <form onSubmit={handleCreateTaskSubmit}>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2"><Label htmlFor="title">Title</Label><Input id="title" name="title" required placeholder="Enter task title..." /></div>
+                  <div className="grid gap-2"><Label htmlFor="description">Description</Label><Textarea id="description" name="description" placeholder="Enter task description..." /></div>
+                  <div className="grid gap-2"><Label htmlFor="assignee">Assignee</Label>
+                    <Select name="assignee" required>
+                      <SelectTrigger><SelectValue placeholder="Select a team member" /></SelectTrigger>
+                      <SelectContent>{projectMembers.map(member => <SelectItem key={member._id} value={member._id}>{member.username}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2"><Label htmlFor="dueDate">Due Date</Label><Input id="dueDate" name="dueDate" type="date" required /></div>
+                </div>
+                <DialogFooter><Button type="submit" className="primary-gradient" disabled={createTaskMutation.isPending}>{createTaskMutation.isPending ? "Creating..." : "Create Task"}</Button></DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       </div>
@@ -195,256 +387,87 @@ export default function ProjectDetail() {
         {/* Task Board */}
         <div className="lg:col-span-2 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* To Do Column */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">To Do</h3>
-                <Badge variant="secondary">{tasksByStatus.todo.length}</Badge>
-              </div>
-              <div className="space-y-3">
-                {tasksByStatus.todo.map((task) => (
-                  <Card key={task.id} className="card-gradient border-0 shadow-md hover-lift cursor-pointer">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-sm font-medium line-clamp-2">
-                          {task.title}
-                        </CardTitle>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <MoreVertical className="w-3 h-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit Task</DropdownMenuItem>
-                            <DropdownMenuItem>Move to In Progress</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              Delete Task
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {task.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                          {task.priority}
-                        </Badge>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{task.dueDate}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            {task.assignee.initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">{task.assignee.name}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* In Progress Column */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">In Progress</h3>
-                <Badge variant="secondary">{tasksByStatus["in-progress"].length}</Badge>
-              </div>
-              <div className="space-y-3">
-                {tasksByStatus["in-progress"].map((task) => (
-                  <Card key={task.id} className="card-gradient border-0 shadow-md hover-lift cursor-pointer">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-sm font-medium line-clamp-2">
-                          {task.title}
-                        </CardTitle>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <MoreVertical className="w-3 h-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit Task</DropdownMenuItem>
-                            <DropdownMenuItem>Move to Done</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              Delete Task
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {task.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                          {task.priority}
-                        </Badge>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{task.dueDate}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            {task.assignee.initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">{task.assignee.name}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
-
-            {/* Done Column */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">Done</h3>
-                <Badge variant="secondary">{tasksByStatus.done.length}</Badge>
-              </div>
-              <div className="space-y-3">
-                {tasksByStatus.done.map((task) => (
-                  <Card key={task.id} className="card-gradient border-0 shadow-md hover-lift cursor-pointer opacity-75">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-sm font-medium line-clamp-2 line-through">
-                          {task.title}
-                        </CardTitle>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button variant="ghost" size="icon" className="h-6 w-6">
-                              <MoreVertical className="w-3 h-3" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem>Edit Task</DropdownMenuItem>
-                            <DropdownMenuItem>Move to In Progress</DropdownMenuItem>
-                            <DropdownMenuItem className="text-destructive">
-                              Delete Task
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                    </CardHeader>
-                    <CardContent className="pt-0 space-y-3">
-                      <p className="text-xs text-muted-foreground line-clamp-2">
-                        {task.description}
-                      </p>
-                      <div className="flex items-center justify-between">
-                        <Badge className={`text-xs ${getPriorityColor(task.priority)}`}>
-                          {task.priority}
-                        </Badge>
-                        <div className="flex items-center gap-2">
-                          <Calendar className="w-3 h-3 text-muted-foreground" />
-                          <span className="text-xs text-muted-foreground">{task.dueDate}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <Avatar className="w-6 h-6">
-                          <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                            {task.assignee.initials}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs text-muted-foreground">{task.assignee.name}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
-              </div>
-            </div>
+            {renderTaskColumn("To Do", tasksByStatus["To Do"])}
+            {renderTaskColumn("In Progress", tasksByStatus["In Progress"])}
+            {renderTaskColumn("Done", tasksByStatus["Done"])}
           </div>
         </div>
 
-        {/* Discussion Panel */}
-        <div className="space-y-4">
-          <div className="flex items-center gap-2">
-            <MessageSquare className="w-5 h-5 text-primary" />
-            <h3 className="font-semibold text-foreground">Project Discussion</h3>
-          </div>
-          
-          <Card className="card-gradient border-0 shadow-elegant">
-            <CardContent className="p-4 space-y-4 max-h-96 overflow-y-auto">
-              {mockDiscussion.map((message) => (
-                <div key={message.id} className="space-y-3">
-                  <div className="flex gap-3">
-                    <Avatar className="w-8 h-8 flex-shrink-0">
-                      <AvatarFallback className="bg-primary text-primary-foreground text-xs">
-                        {message.user.initials}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1 space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground">
-                          {message.user.name}
-                        </span>
-                        <span className="text-xs text-muted-foreground">
-                          {message.timestamp}
-                        </span>
-                      </div>
-                      <p className="text-sm text-foreground">{message.message}</p>
-                      
-                      {/* Replies */}
-                      {message.replies.map((reply) => (
-                        <div key={reply.id} className="ml-4 mt-3 flex gap-3">
-                          <Avatar className="w-6 h-6 flex-shrink-0">
-                            <AvatarFallback className="bg-secondary text-secondary-foreground text-xs">
-                              {reply.user.initials}
-                            </AvatarFallback>
-                          </Avatar>
-                          <div className="flex-1 space-y-1">
-                            <div className="flex items-center gap-2">
-                              <span className="text-xs font-medium text-foreground">
-                                {reply.user.name}
-                              </span>
-                              <span className="text-xs text-muted-foreground">
-                                {reply.timestamp}
-                              </span>
+        {/* Right Panel: Members & Discussion */}
+        <div className="space-y-6">
+            {/* NEW: Team Members Card */}
+            <Card className="card-gradient border-0 shadow-elegant">
+                <CardHeader className="flex flex-row items-center justify-between pb-2">
+                    <CardTitle className="text-base font-semibold">Team Members</CardTitle>
+                    <Dialog open={isAddMemberDialogOpen} onOpenChange={setIsAddMemberDialogOpen}>
+                        <DialogTrigger asChild>
+                            <Button variant="ghost" size="sm"><UserPlus className="h-4 w-4 mr-2" />Add</Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                            <DialogHeader><DialogTitle>Add Members to Project</DialogTitle></DialogHeader>
+                            <div className="space-y-2 py-4 max-h-80 overflow-y-auto">
+                                {areUsersLoading && <Skeleton className="h-10 w-full" />}
+                                {availableUsersToAdd.map(user => (
+                                    <div key={user._id} className="flex items-center justify-between p-2 rounded-md hover:bg-muted">
+                                        <div className="flex items-center gap-3">
+                                            <Avatar className="w-8 h-8"><AvatarFallback>{getInitials(user.username)}</AvatarFallback></Avatar>
+                                            <div>
+                                                <p className="text-sm font-medium">{user.username}</p>
+                                                <p className="text-xs text-muted-foreground">{user.email}</p>
+                                            </div>
+                                        </div>
+                                        <Button size="sm" onClick={() => addMemberMutation.mutate({ projectId: projectId!, userId: user._id })} disabled={addMemberMutation.isPending}>Add</Button>
+                                    </div>
+                                ))}
+                                {!areUsersLoading && availableUsersToAdd.length === 0 && <p className="text-center text-sm text-muted-foreground py-4">All users are already in this project.</p>}
                             </div>
-                            <p className="text-sm text-foreground">{reply.message}</p>
-                          </div>
+                        </DialogContent>
+                    </Dialog>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    {projectMembers.map(member => (
+                        <div key={member._id} className="flex items-center justify-between">
+                            <div className="flex items-center gap-3">
+                                <Avatar className="w-8 h-8"><AvatarFallback>{getInitials(member.username)}</AvatarFallback></Avatar>
+                                <div><p className="text-sm font-medium">{member.username}</p><p className="text-xs text-muted-foreground">{member.email}</p></div>
+                            </div>
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => removeMemberMutation.mutate({ projectId: projectId!, userId: member._id })} disabled={removeMemberMutation.isPending}><X className="h-4 w-4"/></Button>
                         </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </CardContent>
-          </Card>
+                    ))}
+                </CardContent>
+            </Card>
 
-          {/* Message Input */}
-          <div className="space-y-2">
-            <Textarea
-              placeholder="Type your message..."
-              value={newMessage}
-              onChange={(e) => setNewMessage(e.target.value)}
-              className="resize-none"
-              rows={3}
-            />
-            <div className="flex justify-between items-center">
-              <Button variant="ghost" size="icon">
-                <Paperclip className="w-4 h-4" />
-              </Button>
-              <Button className="primary-gradient text-primary-foreground">
-                <Send className="w-4 h-4 mr-2" />
-                Send
-              </Button>
+            {/* Discussion Panel (Mock Data) */}
+            <div className="space-y-4">
+                <div className="flex items-center gap-2"><MessageSquare className="w-5 h-5 text-primary" /><h3 className="font-semibold text-foreground">Project Discussion</h3></div>
+                <Card className="card-gradient border-0 shadow-elegant"><CardContent className="p-4 max-h-96 overflow-y-auto">{/* Mock UI */} </CardContent></Card>
+                <div className="space-y-2">{/* Message Input */}</div>
             </div>
-          </div>
         </div>
       </div>
+      
+      {/* Delete Task Dialog */}
+       <AlertDialog open={isDeleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                    <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                        This will permanently delete the task. This action cannot be undone.
+                    </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction 
+                        onClick={confirmDelete} 
+                        className="bg-destructive text-destructive-foreground hover:bg-destructive/90" 
+                        disabled={deleteTaskMutation.isPending}
+                    >
+                        {deleteTaskMutation.isPending ? "Deleting..." : "Delete Task"}
+                    </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+       </AlertDialog>
     </div>
   );
 }
+

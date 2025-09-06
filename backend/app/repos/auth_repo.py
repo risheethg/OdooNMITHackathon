@@ -1,8 +1,9 @@
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 # Your project's specific imports
 from .base_repo import BaseRepo
 from ..models.auth_model import UserCreate
+from bson import ObjectId
 from ..core.security import get_password_hash
 from ..core.db_connection import get_db
 
@@ -49,5 +50,14 @@ class AuthRepo(BaseRepo):
         Fetches a non-deleted user by their email address using the new `get_one` method.
         """
         return self.get_one({"email": email})
+
+    def get_all_users(self, current_user_id: str) -> List[Dict[str, Any]]:
+        """
+        Fetches all non-deleted users from the database, excluding the current user.
+        """
+        # Add a filter to exclude the document with the current user's ID.
+        query = {"_id": {"$ne": ObjectId(current_user_id)}}
+        # The get_all method from BaseRepo will combine this with the 'is_deleted: False' filter.
+        return self.get_all(query)
 
 auth_repo = AuthRepo()
