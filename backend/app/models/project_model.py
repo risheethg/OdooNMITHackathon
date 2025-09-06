@@ -8,13 +8,15 @@ class Project(BaseModel):
     project_id: str = Field(..., alias="_id")
     project_name: str
     description: Optional[str] = None
+    priority: Optional[str] = None
+    due_date: Optional[str] = None
     jira_project_key: Optional[str] = None
     created_by: str
     members: List[str] = Field(default_factory=list) # <-- ADDED THIS FIELD
     is_deleted: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
-    
+
     @field_validator("project_id", mode="before")
     @classmethod
     def convert_objectid_to_str(cls, v: Any) -> str:
@@ -30,6 +32,8 @@ class Project(BaseModel):
 class ProjectCreate(BaseModel):
     project_name: str = Field(..., description="Name for the new project.")
     description: Optional[str] = Field(None, description="Description for the new project.")
+    due_date: Optional[str] = None
+    priority: Optional[str] = None
 
 class ProjectUpdate(BaseModel):
     project_name: Optional[str] = Field(None, description="Optional new name for the project.")
