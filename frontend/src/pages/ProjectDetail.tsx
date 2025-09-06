@@ -11,7 +11,8 @@ import {
   Calendar, 
   MessageSquare,
   Send,
-  Paperclip,
+  Sparkles, // New icon for Gemini
+  Bot,      // New icon for Gemini
   AlertTriangle,
   Trash2,
   Edit,
@@ -112,10 +113,15 @@ interface TaskUpdateData {
 }
 
 interface ChatMessage {
+    // Fields from the backend ChatMessage model
+    _id: string;
+    project_id?: string;
+    user_id?: string;
+    username: string;
     message: string;
-    username?: string; // Present for user messages
-    is_system: boolean; // True for join/leave announcements
-    timestamp: string;
+    created_at: string;
+    // Frontend-only fields
+    is_system?: boolean;
 }
 
 // --- API HELPER FUNCTIONS ---
@@ -138,6 +144,11 @@ const fetchTasksForProject = async (projectId: string): Promise<Task[]> => {
 const fetchAllUsers = async (): Promise<User[]> => {
     const response = await axios.get('http://127.0.0.1:8000/auth/users/all', { headers: getAuthHeader() });
     return response.data.data;
+}
+
+const sendPromptToGemini = async ({ projectId, prompt }: { projectId: string; prompt: string }) => {
+    const response = await axios.post(`http://127.0.0.1:8000/llm/gemini/${projectId}`, { prompt }, { headers: getAuthHeader() });
+    return response.data;
 }
 
 const addMemberToProject = async ({ projectId, userId, email }: { projectId: string; userId: string; email: string; }) => {
@@ -229,7 +240,28 @@ export default function ProjectDetail() {
 
     ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
-        setChatMessages(prev => [...prev, { ...data, timestamp: new Date().toLocaleTimeString() }]);
+        
+        switch (data.event) {
+            case 'history':
+                // The history data is an array of messages
+                setChatMessages(data.data.map((msg: any) => ({
+                    ...msg,
+                    // Ensure timestamp is formatted for display
+                    created_at: new Date(msg.created_at).toLocaleTimeString()
+                })));
+                break;
+            case 'new_message':
+                // A single new message object
+                setChatMessages(prev => [...prev, {
+                    ...data.data,
+                    created_at: new Date(data.data.created_at).toLocaleTimeString()
+                }]);
+                break;
+            case 'system_message':
+                // A system announcement (e.g., user join/leave)
+                setChatMessages(prev => [...prev, { ...data.data, is_system: true, username: 'System', _id: Date.now().toString(), created_at: new Date().toLocaleTimeString() }]);
+                break;
+        }
     };
 
     ws.onclose = () => {
@@ -243,6 +275,18 @@ export default function ProjectDetail() {
 
     return () => ws.close();
   }, [projectId]);
+
+  // --- DATA MUTATIONS ---
+  const geminiMutation = useMutation({
+      mutationFn: sendPromptToGemini,
+      onSuccess: () => {
+          // The response is handled via WebSocket broadcast, so we just clear the input.
+          setChatInput("");
+      },
+      onError: (error: any) => {
+          toast.error(error.response?.data?.detail || "Failed to send prompt to Gemini.");
+      }
+  });
 
   // --- DATA MUTATIONS ---
   const addMemberMutation = useMutation({
@@ -325,9 +369,16 @@ export default function ProjectDetail() {
 
   const handleSendMessage = (e: FormEvent) => {
       e.preventDefault();
-      if (chatInput.trim() && socketRef.current?.readyState === WebSocket.OPEN) {
-          // The backend expects a JSON string, not plain text.
+      const message = chatInput.trim();
+      if (!message || !projectId) return;
+
+      if (message.toLowerCase().startsWith('@gemini ')) {
+          const prompt = message.substring(8); // Get text after "@gemini "
+          geminiMutation.mutate({ projectId, prompt });
+      } else if (socketRef.current?.readyState === WebSocket.OPEN) {
           socketRef.current.send(JSON.stringify({ message: chatInput }));
+          setChatInput("");
+      } else {
           setChatInput("");
       }
   };
@@ -507,18 +558,24 @@ export default function ProjectDetail() {
                 <Card className="card-gradient border-0 shadow-elegant flex-grow flex flex-col">
                     <CardContent ref={chatContainerRef} className="p-4 flex-grow overflow-y-auto space-y-4">
                         {chatMessages.map((msg, index) => (
-                            <div key={index} className={`flex flex-col ${msg.is_system ? 'items-center' : 'items-start'}`}>
+                            <div key={msg._id || index} className={`flex flex-col ${msg.is_system ? 'items-center' : 'items-start'}`}>
                                 {msg.is_system ? (
                                     <Badge variant="secondary" className="text-xs">{msg.message}</Badge>
                                 ) : (
-                                    <div className="flex items-start gap-2.5">
-                                        <Avatar className="w-8 h-8"><AvatarFallback className="text-xs">{getInitials(msg.username)}</AvatarFallback></Avatar>
+                                    <div className={`flex items-start gap-2.5 ${msg.username === 'Gemini' ? 'w-full' : ''}`}>
+                                        <Avatar className={`w-8 h-8 ${msg.username === 'Gemini' ? 'bg-primary/20 text-primary' : ''}`}>
+                                            <AvatarFallback className="text-xs">
+                                                {msg.username === 'Gemini' ? <Bot className="h-4 w-4" /> : getInitials(msg.username || 'S')}
+                                            </AvatarFallback>
+                                        </Avatar>
                                         <div className="flex flex-col gap-1">
                                             <div className="flex items-center space-x-2 rtl:space-x-reverse">
-                                                <span className="text-sm font-semibold text-foreground">{msg.username}</span>
-                                                <span className="text-xs font-normal text-muted-foreground">{msg.timestamp}</span>
+                                                <span className={`text-sm font-semibold ${msg.username === 'Gemini' ? 'text-primary' : 'text-foreground'}`}>{msg.username}</span>
+                                                <span className="text-xs font-normal text-muted-foreground">{msg.created_at}</span>
                                             </div>
-                                            <div className="leading-snug p-2.5 rounded-lg bg-muted/50 text-sm font-normal text-foreground">{msg.message}</div>
+                                            <div className={`leading-snug p-2.5 rounded-lg text-sm font-normal ${msg.username === 'Gemini' ? 'bg-primary/10 text-primary-foreground' : 'bg-muted/50 text-foreground'}`}>
+                                                {msg.message}
+                                            </div>
                                         </div>
                                     </div>
                                 )}
@@ -526,8 +583,8 @@ export default function ProjectDetail() {
                         ))}
                     </CardContent>
                     <form onSubmit={handleSendMessage} className="p-4 border-t border-border/20 flex items-center gap-2">
-                        <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message..." className="flex-grow" autoComplete="off" />
-                        <Button type="submit" size="icon" className="primary-gradient"><Send className="h-4 w-4" /></Button>
+                        <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)} placeholder="Type a message or @gemini..." className="flex-grow" autoComplete="off" disabled={geminiMutation.isPending} />
+                        <Button type="submit" size="icon" className="primary-gradient" disabled={geminiMutation.isPending || !chatInput.trim()}><Send className="h-4 w-4" /></Button>
                     </form>
                 </Card>
             </div>

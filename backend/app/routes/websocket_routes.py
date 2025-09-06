@@ -12,6 +12,7 @@ from app.models.auth_model import User
 
 router = APIRouter(tags=["Websockets"])
 
+
 @router.websocket("/ws/health-check")
 async def websocket_health_check_endpoint(websocket: WebSocket):
     """
@@ -120,81 +121,3 @@ async def notification_websocket_endpoint(
     except WebSocketDisconnect:
         manager.disconnect(websocket, user_channel_id)
         logs.define_logger(logging.INFO, None, log_name, message=f"Notification WebSocket disconnected for user '{current_user.username}'.")
-
-@router.websocket("/ws/chat/{project_id}")
-async def chat_websocket_endpoint(
-    websocket: WebSocket,
-    project_id: str,
-    token: str = Query(...)
-):
-    """
-    Handles real-time chat connections for a specific project.
-    Authenticates, authorizes, and then manages the connection lifecycle.
-    """
-    log_name = inspect.stack()[0]
-    current_user: User = None
-    is_connection_active: bool = False
-
-    # 1. Authenticate the user from the token before accepting the connection.
-    try:
-        current_user = auth_service.get_current_user_from_token(token)
-        if not current_user:
-            logs.define_logger(logging.WARNING, None, log_name, message="WebSocket connection rejected: Invalid token or user not found.")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid token or user not found.")
-            return
-    except Exception as e:
-        logs.define_logger(logging.ERROR, None, log_name, message=f"An unexpected error occurred during WebSocket authentication: {e}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Authentication process failed.")
-        return
-
-    # 2. Authorize the user for the specific project.
-    try:
-        if not chat_service._is_user_project_member(project_id, current_user.user_id):
-            logs.define_logger(logging.WARNING, None, log_name, message=f"WebSocket connection denied for user '{current_user.username}' to project '{project_id}'. Not a member.")
-            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Forbidden: Not a project member.")
-            return
-    except Exception as e:
-        logs.define_logger(logging.ERROR, None, log_name, message=f"An error occurred during WebSocket authorization for user '{current_user.username}': {e}")
-        await websocket.close(code=status.WS_1011_INTERNAL_ERROR, reason="Authorization process failed.")
-        return
-
-    # 3. If authentication and authorization succeed, accept the connection.
-    try:
-        await websocket.accept()
-        await manager.connect(websocket, project_id)
-        is_connection_active = True
-        logs.define_logger(logging.INFO, None, log_name, message=f"WebSocket accepted for user '{current_user.username}' on project '{project_id}'.")
-        
-        # 4. Listen for incoming messages in a loop.
-        while True:
-            # FIX: Changed from receive_json() to receive_text() to handle plain text messages.
-            message_text = await websocket.receive_text()
-
-            # Ignore empty or whitespace-only messages
-            if not message_text.strip():
-                continue
-            
-            # 5. Save the message to the database via the service.
-            message_data = ChatMessageCreate(message=message_text)
-            new_message = await chat_service.create_chat_message(
-                project_id=project_id,
-                user_id=current_user.user_id,
-                username=current_user.username,
-                data=message_data
-            )
-            
-            # 6. Broadcast the new message to all clients in the project room.
-            broadcast_payload = {"event": "new_message", "data": new_message.model_dump(mode="json")}
-            await manager.broadcast(project_id, broadcast_payload)
-
-    except WebSocketDisconnect:
-        logs.define_logger(logging.INFO, None, log_name, message=f"User '{current_user.username}' disconnected from project '{project_id}' chat.")
-    except Exception as e:
-        logs.define_logger(logging.ERROR, None, log_name, message=f"An error occurred in the chat WebSocket for user '{current_user.username}' on project '{project_id}': {e}")
-        if websocket.client_state != WebSocketState.DISCONNECTED:
-            await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
-    finally:
-        # 7. Clean up the connection ONLY if it was successfully established.
-        if is_connection_active:
-            await manager.disconnect(websocket, project_id)
-            logs.define_logger(logging.INFO, None, log_name, message=f"Cleaned up connection for user '{current_user.username}' from project '{project_id}'.")

@@ -4,7 +4,6 @@ from app.routes.auth_routes import router as auth_router# Assuming your router i
 from app.routes.project_routes import router as project_router
 from app.routes.chat_routes import router as chat_router
 from app.routes.task_routes import router as task_router
-from app.routes.websocket_routes import router as websocket_router
 from app.routes.notification_routes import router as notification_router # Import the new router
 from app.routes.member_routes import router as member_router
 from app.routes.stats_routes import router as stats_router
@@ -37,11 +36,9 @@ app.include_router(auth_router)
 app.include_router(project_router)
 app.include_router(task_router)
 app.include_router(chat_router)
-app.include_router(task_router)
-app.include_router(notification_router) # Add the notification router
+app.include_router(notification_router)
 app.include_router(member_router)
 app.include_router(stats_router)
-app.include_router(websocket_router)
 
 
 
