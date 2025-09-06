@@ -12,7 +12,16 @@ class ProjectService:
     def __init__(self, repo: ProjectRepo):
         self.repo = repo
 
-    def add_member_to_project(self, project_id: str, user_id: str) -> Optional[Project]:
+    def get_project_by_id(self, project_id: str) -> Optional[Project]:
+        """Service to retrieve a single project by its MongoDB _id."""
+        logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Fetching project with ID: {project_id}")
+        project_doc = self.repo.get_by_id(project_id)
+        if project_doc:
+            logs.define_logger(level=logging.INFO, loggName=inspect.stack()[0], message=f"Found project with ID: {project_id}")
+            return Project.model_validate(project_doc)
+        return None
+
+    async def add_member_to_project(self, project_id: str, user_id: str) -> Optional[Project]:
         """Adds a new member to a project's team."""
         logs.define_logger(
             level=logging.INFO,
@@ -43,7 +52,7 @@ class ProjectService:
             logs.define_logger(level=logging.ERROR, loggName=inspect.stack()[0], message=f"An unexpected error occurred while adding member to project '{project_id}'. Error: {str(e)}")
             raise
 
-    def remove_member_from_project(self, project_id: str, user_id: str) -> Optional[Project]:
+    async def remove_member_from_project(self, project_id: str, user_id: str) -> Optional[Project]:
         """Removes a member from a project's team."""
         logs.define_logger(
             level=logging.INFO,

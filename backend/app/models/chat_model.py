@@ -34,3 +34,6 @@ class ChatMessageCreate(BaseModel):
 
 class ChatMessageUpdate(BaseModel):
     message: str = Field(..., min_length=1, description="The updated content of the chat message.")
+
+class GeminiRequest(BaseModel):
+    prompt: str = Field(..., description="The user's prompt for the Gemini model.")

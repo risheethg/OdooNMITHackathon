@@ -1,6 +1,7 @@
 from datetime import timedelta
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordRequestForm
+from typing import List
 
 # Updated imports to reflect new model structure
 from ..models.auth_model import User, UserCreate, Token
@@ -87,4 +88,23 @@ async def read_users_me(current_user: User = Depends(get_current_active_user)):
         status="success",
         status_code=status.HTTP_200_OK,
         data=current_user
+    )
+
+@router.get("/users/all", response_model=ResponseModel[List[User]])
+async def get_all_users(
+    service: AuthService = Depends(get_auth_service),
+    current_user: User = Depends(get_current_active_user) # Protect the endpoint
+):
+    """
+    Retrieves a list of all registered users.
+    This is a protected endpoint.
+    """
+    users_list = service.get_all_users(current_user_id=current_user.user_id)
+    # Convert each user dict to a User model instance
+    users_response_data = [User.model_validate(user) for user in users_list]
+    return ResponseModel(
+        status="success",
+        message="All users retrieved successfully.",
+        status_code=status.HTTP_200_OK,
+        data=users_response_data
     )
