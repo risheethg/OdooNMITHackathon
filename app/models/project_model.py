@@ -11,6 +11,7 @@ class Project(BaseModel):
     jira_project_key: Optional[str] = None
     created_by: str
     members: List[str] = Field(default_factory=list) # <-- ADDED THIS FIELD
+    user_id: str = Field(..., description="The ID of the user to add or remove.")
     is_deleted: bool = False
     created_at: datetime = Field(default_factory=datetime.utcnow)
     updated_at: datetime = Field(default_factory=datetime.utcnow)
